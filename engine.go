@@ -9,6 +9,7 @@ func engine() (frEng, toEng chan string) {
 			switch cmd {
 			case "stop":
 			case "quit", "q":
+				
 			}
 		}
 	}()

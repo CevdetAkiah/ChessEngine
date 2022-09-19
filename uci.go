@@ -8,27 +8,36 @@ import (
 	"strings"
 )
 
-var tell func(text ...string)
+var (
+	tell = mainTell // set default tell
+	trim = strings.TrimSpace
+	low  = strings.ToLower
+)
 
-func uci(frGUI chan string, myTell func(text ...string)) {
-	tell = myTell
+func uci(frGUI chan string) {
 	tell("info string Hello from uci")
-
 	frEng, toEng := engine() // what is sent from the engine and what is sent to the engine
-
-	quit := false // when true command stream stops
+	quit := false            // when true command stream stops
 	cmd := ""
-	bm :="" // best move
+	words := []string{}
+	bm := "" // best move
 	for quit == false {
 		select {
-		case cmd = <-frGUI: // command received from gui
+		case cmd = <-frGUI:
+			words = strings.Split(cmd, " ") // command received from gui
 		case bm = <-frEng:
-			 handleBm(bm)
-			 continue
+			handleBm(bm)
+			continue
 		}
-		switch cmd {
+		words[0] = trim(low(words[0]))
+		switch words[0] {
 		case "uci":
-		case "stop": 
+			handleUci()
+		case "isready":
+			handleIsReady()
+		case "setoption":
+			handleSetoption(words)
+		case "stop":
 			handleStop(toEng)
 		case "quit", "q":
 			quit = true
@@ -37,14 +46,30 @@ func uci(frGUI chan string, myTell func(text ...string)) {
 	}
 }
 
+func handleUci() {
+	tell("id name Bingo")
+	tell("id author Cevdet")
+
+	tell("option name Hash type spin default 32 min 1 max 1024")
+	tell("option name Threads type spin default 1 min 1 max 16")
+	tell("uciok")
+}
+
+func handleIsReady() {
+	tell("readyok")
+}
+func handleSetoption(option []string) {
+	tell("info string set option", strings.Join(option, " "))
+	tell("info string not implemented yet")
+}
+
 // handleBm handles best move provided from the engine
-func handleBm(bm string){
+func handleBm(bm string) {
 	tell(bm)
 }
 
-
 // handleBm handles best move provided from the engine
-func handleStop(toEng chan string){
+func handleStop(toEng chan string) {
 	toEng <- "stop"
 }
 
