@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 )
 
 var (
-	tell = mainTell // set default tell
-	trim = strings.TrimSpace
-	low  = strings.ToLower
+	tell  = mainTell // set default tell
+	trim  = strings.TrimSpace
+	low   = strings.ToLower
+	split = strings.Split
 
 	saveBm = ""
 )
@@ -41,7 +43,7 @@ func uci(frGUI chan string) {
 		case "ucinewgame":
 			handleNewgame()
 		case "position":
-			handlePosition(words)
+			handlePosition(cmd)
 		case "debug":
 			handleDebug(words)
 		case "register":
@@ -82,21 +84,45 @@ func handleSetoption(option []string) {
 func handleNewgame() {
 	tell("info string ucinewgame not implemented")
 }
-func handlePosition(words []string) {
+func handlePosition(cmd string) {
 	// position [fen <fenstring> | startpos ] moves <move1> .... <movei>
-	if len(words) > 1 {
-		words[1] = trim(low(words[1]))
-		switch words[1] {
-		case "startpos":
-			tell("info string position startpos not impletmented")
-		case "fen":
-			tell("info string position fen not implemented")
-		default:
-			tell("info string position", words[1], " not implemented")
-		}
-	} else {
-		tell("info string position not implemented")
+	cmd = trim(strings.TrimPrefix(cmd, "position"))
+	parts := split(cmd, "moves")
+
+	if len(cmd) == 0 || len(parts) > 2 {
+		err := fmt.Errorf("%v wrong length=%v", parts, len(parts))
+		tell("info string Error ", fmt.Sprint(err))
+		return
 	}
+
+	alt := split(parts[0], " ")
+	alt[0] = trim(alt[0])
+	tell("info string position ", alt[0], " not implemented")
+
+	if alt[0] == "startpos" {
+		// black position, then number of empty spaces, then white position, then turn order (w is first in this case), then castling potential, then 50 pawn move rule, then move number
+		alt[0] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+	} else if alt[0] == "fen" { // if alt[0] is fen then alt[1] is the moves
+		alt[0] = ""
+	} else {
+		err := fmt.Errorf("%#v must be %#v or %#v", alt[0], "fen", "startpos")
+		tell("info string Error ", err.Error())
+		return
+	}
+	parts[0] = strings.Join(alt, " ")
+	// Now parts[0] is the fen-string only
+
+	// start the parsing
+	parts[0] = trim(parts[0])
+	fmt.Printf("info string parse %#v\n", parts[0])
+	parseFEN(parts[0])
+
+	if len(parts) == 2 {
+		parts[1] = low(trim(parts[1]))
+		fmt.Printf("info string parse %#v\n", parts[1])
+		parseMvs(parts[1])
+	}
+
 }
 
 func handleGo(words []string) {
@@ -193,6 +219,44 @@ func input() chan string {
 		}
 	}()
 	return line
+}
+
+func parseFEN(FEN string) {
+	fenIx := 0
+
+	for row := 7; row >= 0; row-- {
+		for sq := row * 8; sq < row*8+8; { // start drawing characters on white side
+
+			char := string(FEN[fenIx])
+			fenIx++
+			if char == "/" {
+				continue
+			}
+
+			if i, err := strconv.Atoi(char); err == nil { // if no error then this is an empty square. Empty squares are represented by numbers.
+				fmt.Println(i, "empty from sq", sq)
+				sq += i
+				continue
+			}
+
+			fmt.Println(char, "on sq", sq)
+			sq++
+		}
+	}
+
+	// take care of side to move
+	// take care of castling rights
+	// set the 50 move rule
+	// set number of full moves
+}
+
+// parse and make the moves in position command from GUI
+func parseMvs(mvstr string) {
+	mvs := strings.Split(mvstr, " ")
+
+	for _, mv := range mvs {
+		fmt.Println("make move", mv)
+	}
 }
 
 func mainTell(text ...string) {
