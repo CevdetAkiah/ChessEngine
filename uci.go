@@ -221,43 +221,7 @@ func input() chan string {
 	return line
 }
 
-func parseFEN(FEN string) {
-	fenIx := 0
 
-	for row := 7; row >= 0; row-- {
-		for sq := row * 8; sq < row*8+8; { // start drawing characters on white side
-
-			char := string(FEN[fenIx])
-			fenIx++
-			if char == "/" {
-				continue
-			}
-
-			if i, err := strconv.Atoi(char); err == nil { // if no error then this is an empty square. Empty squares are represented by numbers.
-				fmt.Println(i, "empty from sq", sq)
-				sq += i
-				continue
-			}
-
-			fmt.Println(char, "on sq", sq)
-			sq++
-		}
-	}
-
-	// take care of side to move
-	// take care of castling rights
-	// set the 50 move rule
-	// set number of full moves
-}
-
-// parse and make the moves in position command from GUI
-func parseMvs(mvstr string) {
-	mvs := strings.Split(mvstr, " ")
-
-	for _, mv := range mvs {
-		fmt.Println("make move", mv)
-	}
-}
 
 func mainTell(text ...string) {
 	toGUI := ""
