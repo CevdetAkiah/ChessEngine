@@ -6,6 +6,316 @@ import (
 	"strings"
 )
 
+func init() {
+	initFenSq2Int()
+}
+
+type boardStruct struct {
+	sq        [64]int      // number of squares on the board
+	wbBB      [2]bitBoard  // white black bitBoard. One for white pieces, one for black pieces
+	pieceBB   [nP]bitBoard // one bitBoard for each piece type
+	King      [2]int       // one int for each king position, one white one black
+	ep        int          // en-passant suqare
+	castlings              // castling state
+	stm       colour       // side to move, white or black
+	count     [12]int      // 12 counters to count how many pieces we have
+	rule50    int          // set to 0 if pawn moves or capture occurrs. See 50 move rule
+}
+
+type colour int
+
+var board = boardStruct{}
+
+// allBB returns a bitBoard with all pieces showing
+func (b *boardStruct) allBB() bitBoard {
+	return b.wbBB[0] | b.wbBB[1]
+}
+
+// clear the board, flags, bitBoards etc
+func (b *boardStruct) clear() {
+	b.stm = WHITE
+	b.rule50 = 0
+	b.sq = [64]int{}
+	b.King = [2]int{}
+	b.ep = 0
+	b.castlings = 0
+
+	for ix := A1; ix <= H8; ix++ {
+		b.sq[ix] = empty
+	}
+
+	for ix := 0; ix < nP12; ix++ {
+		b.count[ix] = 0
+	}
+
+	// bitBoards
+	b.wbBB[WHITE], b.wbBB[BLACK] = 0, 0
+	for ix := 0; ix < nP; ix++ {
+		b.pieceBB[ix] = 0
+	}
+}
+
+func (b *boardStruct) newGame() {
+	b.stm = WHITE
+	b.clear()
+	parseFEN(startpos)
+}
+
+// setSq sets a piece on a certain square on the board
+func (b *boardStruct) setSq(p12, s int) {
+	b.sq[s] = p12
+
+	// if p12 is empty then we clear that bit (s) for white and black on the board
+	if p12 == empty {
+		b.wbBB[WHITE].clr(uint(s))
+		b.wbBB[BLACK].clr(uint(s))
+		// we clear the piece type on position s
+		for p := 0; p < nP; p++ {
+			b.pieceBB[p].clr(uint(s))
+		}
+		return
+	}
+
+	p := piece(p12)
+	sd := p12Colour(p12)
+
+	// king is in this square
+	if p == King {
+		b.King[sd] = s
+	}
+
+	// set the colour board to have a piece on position s
+	b.wbBB[sd].set(uint(s))
+	// set the piece board to have piece p on position s
+	b.pieceBB[p].set(uint(s))
+}
+
+func parseFEN(FEN string) {
+	fenIx := 0
+
+	for row := 7; row >= 0; row-- {
+		for sq := row * 8; sq < row*8+8; { // start drawing characters on white side
+
+			char := string(FEN[fenIx])
+			fenIx++
+			if char == "/" {
+				continue
+			}
+
+			if i, err := strconv.Atoi(char); err == nil { // if no error then this is an empty square. Empty squares are represented by numbers.
+				fmt.Println(i, "empty from sq", sq)
+				sq += i
+				continue
+			}
+
+			board.setSq(fen2Int(char), sq)
+			sq++
+		}
+	}
+
+	// take care of side to move
+	// take care of castling rights
+	// set the 50 move rule
+	// set number of full moves
+}
+
+// parse and make the moves in position command from GUI
+func parseMvs(mvstr string) {
+	mvs := strings.Split(mvstr, " ")
+
+	for _, mv := range mvs {
+		fmt.Println("make move", mv)
+	}
+}
+
+// fen2Int convert pieceString to p12 int
+func fen2Int(c string) int {
+	for p, x := range p12ToFen {
+		if string(x) == c {
+			return p
+		}
+	}
+	return empty
+}
+
+// int2Fen converts p12 to fenString
+func int2Fen(p12 int) string {
+	if p12 == empty {
+		return " "
+	}
+	return string(p12ToFen[p12])
+}
+
+// piece returns the colourless pc from p12.
+// bitshifting backwards reveals the base piece, eg bQ >> 1 and wQ >> 1 both equal Queen. 1001 >> 1 & 1000 >> 1 == 100 (4 in decimal)
+func piece(p12 int) int {
+	return p12 >> 1
+}
+
+// p12Colour returns the colour of a p12 form. 0 for white 1 for black.
+func p12Colour(p12 int) colour {
+	return colour(p12 & 0x1)
+}
+
+// pcP12 returns p12 from pc and sd
+func pc2P12(pc int, sd colour) int {
+	return (pc << 1) | int(sd)
+}
+
+// map fen-sq to int
+var fenSq2Int = make(map[string]int)
+
+// map int-sq to fen
+var sq2Fen = make(map[int]string)
+
+// init the square map from string to int and int to string
+func initFenSq2Int() {
+	fenSq2Int["a1"] = A1
+	fenSq2Int["a2"] = A2
+	fenSq2Int["a3"] = A3
+	fenSq2Int["a4"] = A4
+	fenSq2Int["a5"] = A5
+	fenSq2Int["a6"] = A6
+	fenSq2Int["a7"] = A7
+	fenSq2Int["a8"] = A8
+
+	fenSq2Int["b1"] = B1
+	fenSq2Int["b2"] = B2
+	fenSq2Int["b3"] = B3
+	fenSq2Int["b4"] = B4
+	fenSq2Int["b5"] = B5
+	fenSq2Int["b6"] = B6
+	fenSq2Int["b7"] = B7
+	fenSq2Int["b8"] = B8
+
+	fenSq2Int["c1"] = C1
+	fenSq2Int["c2"] = C2
+	fenSq2Int["c3"] = C3
+	fenSq2Int["c4"] = C4
+	fenSq2Int["c5"] = C5
+	fenSq2Int["c6"] = C6
+	fenSq2Int["c7"] = C7
+	fenSq2Int["c8"] = C8
+
+	fenSq2Int["d1"] = D1
+	fenSq2Int["d2"] = D2
+	fenSq2Int["d3"] = D3
+	fenSq2Int["d4"] = D4
+	fenSq2Int["d5"] = D5
+	fenSq2Int["d6"] = D6
+	fenSq2Int["d7"] = D7
+	fenSq2Int["d8"] = D8
+
+	fenSq2Int["e1"] = E1
+	fenSq2Int["e2"] = E2
+	fenSq2Int["e3"] = E3
+	fenSq2Int["e4"] = E4
+	fenSq2Int["e5"] = E5
+	fenSq2Int["e6"] = E6
+	fenSq2Int["e7"] = E7
+	fenSq2Int["e8"] = E8
+
+	fenSq2Int["f1"] = F1
+	fenSq2Int["f2"] = F2
+	fenSq2Int["f3"] = F3
+	fenSq2Int["f4"] = F4
+	fenSq2Int["f5"] = F5
+	fenSq2Int["f6"] = F6
+	fenSq2Int["f7"] = F7
+	fenSq2Int["f8"] = F8
+
+	fenSq2Int["g1"] = G1
+	fenSq2Int["g2"] = G2
+	fenSq2Int["g3"] = G3
+	fenSq2Int["g4"] = G4
+	fenSq2Int["g5"] = G5
+	fenSq2Int["g6"] = G6
+	fenSq2Int["g7"] = G7
+	fenSq2Int["g8"] = G8
+
+	fenSq2Int["h1"] = H1
+	fenSq2Int["h2"] = H2
+	fenSq2Int["h3"] = H3
+	fenSq2Int["h4"] = H4
+	fenSq2Int["h5"] = H5
+	fenSq2Int["h6"] = H6
+	fenSq2Int["h7"] = H7
+	fenSq2Int["h8"] = H8
+
+	// -------------- sq2Fen
+	sq2Fen[A1] = "a1"
+	sq2Fen[A2] = "a2"
+	sq2Fen[A3] = "a3"
+	sq2Fen[A4] = "a4"
+	sq2Fen[A5] = "a5"
+	sq2Fen[A6] = "a6"
+	sq2Fen[A7] = "a7"
+	sq2Fen[A8] = "a8"
+
+	sq2Fen[B1] = "b1"
+	sq2Fen[B2] = "b2"
+	sq2Fen[B3] = "b3"
+	sq2Fen[B4] = "b4"
+	sq2Fen[B5] = "b5"
+	sq2Fen[B6] = "b6"
+	sq2Fen[B7] = "b7"
+	sq2Fen[B8] = "b8"
+
+	sq2Fen[C1] = "c1"
+	sq2Fen[C2] = "c2"
+	sq2Fen[C3] = "c3"
+	sq2Fen[C4] = "c4"
+	sq2Fen[C5] = "c5"
+	sq2Fen[C6] = "c6"
+	sq2Fen[C7] = "c7"
+	sq2Fen[C8] = "c8"
+
+	sq2Fen[D1] = "d1"
+	sq2Fen[D2] = "d2"
+	sq2Fen[D3] = "d3"
+	sq2Fen[D4] = "d4"
+	sq2Fen[D5] = "d5"
+	sq2Fen[D6] = "d6"
+	sq2Fen[D7] = "d7"
+	sq2Fen[D8] = "d8"
+
+	sq2Fen[E1] = "e1"
+	sq2Fen[E2] = "e2"
+	sq2Fen[E3] = "e3"
+	sq2Fen[E4] = "e4"
+	sq2Fen[E5] = "e5"
+	sq2Fen[E6] = "e6"
+	sq2Fen[E7] = "e7"
+	sq2Fen[E8] = "e8"
+
+	sq2Fen[F1] = "f1"
+	sq2Fen[F2] = "f2"
+	sq2Fen[F3] = "f3"
+	sq2Fen[F4] = "f4"
+	sq2Fen[F5] = "f5"
+	sq2Fen[F6] = "f6"
+	sq2Fen[F7] = "f7"
+	sq2Fen[F8] = "f8"
+
+	sq2Fen[G1] = "g1"
+	sq2Fen[G2] = "g2"
+	sq2Fen[G3] = "g3"
+	sq2Fen[G4] = "g4"
+	sq2Fen[G5] = "g5"
+	sq2Fen[G6] = "g6"
+	sq2Fen[G7] = "g7"
+	sq2Fen[G8] = "g8"
+
+	sq2Fen[H1] = "h1"
+	sq2Fen[H2] = "h2"
+	sq2Fen[H3] = "h3"
+	sq2Fen[H4] = "h4"
+	sq2Fen[H5] = "h5"
+	sq2Fen[H6] = "h6"
+	sq2Fen[H7] = "h7"
+	sq2Fen[H8] = "h8"
+}
+
 const (
 	nP12     = 12 // number of pieces total
 	nP       = 6  // number of individual pieces
@@ -40,6 +350,12 @@ const (
 	wK           // white king
 	bK           // black king
 	empty = 15
+)
+
+// piece char definitions
+const (
+	pc2Char  = "PNBRQK?"
+	p12ToFen = "PpNnBbRrQqKk"
 )
 
 // square names
@@ -116,89 +432,3 @@ const (
 	G8
 	H8
 )
-
-type boardStruct struct {
-	sq        [64]int      // number of squares on the board
-	wbBB      [2]bitBoard  // white black bitBoard. One for white pieces, one for black pieces
-	pieceBB   [nP]bitBoard // one bitBoard for each piece type
-	King      [2]int       // one int for each king position, one white one black
-	ep        int          // en-passant suqare
-	castlings              // castling state
-	stm       colour       // side to move, white or black
-	count     [12]int      // 12 counters to count how many pieces we have
-}
-
-type colour int
-type castlings uint
-
-var board = boardStruct{}
-
-// allBB returns a bitBoard with all pieces showing
-func (b *boardStruct) allBB() bitBoard {
-	return b.wbBB[0] | b.wbBB[1]
-}
-
-// clear the board, flags, bitBoards etc
-func (b *boardStruct) clear() {
-	b.stm = WHITE
-	b.sq = [64]int{}
-	for ix := A1; ix <= H8; ix++ {
-		b.sq[ix] = empty
-	}
-	b.ep = 0
-	b.castlings = 0
-
-	for ix := 0; ix < nP12; ix++ {
-		b.count[ix] = 0
-	}
-
-	// bitBoards
-	b.wbBB[WHITE], b.wbBB[BLACK] = 0, 0
-	for ix := 0; ix < nP; ix++ {
-		b.pieceBB[ix] = 0
-	}
-}
-
-func (b *boardStruct) newGame() {
-	b.stm = WHITE
-	b.clear()
-	parseFEN(startpos)
-}
-
-func parseFEN(FEN string) {
-	fenIx := 0
-
-	for row := 7; row >= 0; row-- {
-		for sq := row * 8; sq < row*8+8; { // start drawing characters on white side
-
-			char := string(FEN[fenIx])
-			fenIx++
-			if char == "/" {
-				continue
-			}
-
-			if i, err := strconv.Atoi(char); err == nil { // if no error then this is an empty square. Empty squares are represented by numbers.
-				fmt.Println(i, "empty from sq", sq)
-				sq += i
-				continue
-			}
-
-			fmt.Println(char, "on sq", sq)
-			sq++
-		}
-	}
-
-	// take care of side to move
-	// take care of castling rights
-	// set the 50 move rule
-	// set number of full moves
-}
-
-// parse and make the moves in position command from GUI
-func parseMvs(mvstr string) {
-	mvs := strings.Split(mvstr, " ")
-
-	for _, mv := range mvs {
-		fmt.Println("make move", mv)
-	}
-}

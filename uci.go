@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -65,7 +64,7 @@ func uci(frGUI chan string) {
 }
 
 func handleUci() {
-	tell("id name Bingo")
+	tell("id name BitGo")
 	tell("id author Cevdet")
 
 	tell("option name Hash type spin default 32 min 1 max 1024")
@@ -101,15 +100,14 @@ func handlePosition(cmd string) {
 
 	if alt[0] == "startpos" {
 		// black position, then number of empty spaces, then white position, then turn order (w is first in this case), then castling potential, then 50 pawn move rule, then move number
-		alt[0] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+		parts[0] = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 	} else if alt[0] == "fen" { // if alt[0] is fen then alt[1] is the moves
-		alt[0] = ""
+		parts[0] = trim(strings.TrimPrefix(parts[0], "fen"))
 	} else {
 		err := fmt.Errorf("%#v must be %#v or %#v", alt[0], "fen", "startpos")
 		tell("info string Error ", err.Error())
 		return
 	}
-	parts[0] = strings.Join(alt, " ")
 	// Now parts[0] is the fen-string only
 
 	// start the parsing
@@ -220,8 +218,6 @@ func input() chan string {
 	}()
 	return line
 }
-
-
 
 func mainTell(text ...string) {
 	toGUI := ""
