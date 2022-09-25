@@ -124,7 +124,46 @@ func parseMvs(mvstr string) {
 	mvs := strings.Split(mvstr, " ")
 
 	for _, mv := range mvs {
-		fmt.Println("make move", mv)
+		mv = trim(low(mvstr))
+		if len(mv) < 4 {
+			tell("info string ", mv, " in the position command is not a correct move")
+			return
+		}
+		// is from square ok?
+		fr, ok := fenSq2Int[mv[:2]]
+		if !ok {
+			tell("info string ", mv, " in the position command. fr_sq is not a correct move")
+			return
+		}
+		p12 := board.sq[fr]
+		if p12 == empty {
+			tell("info string ", mv, " in the position command. fr_sq is not a correct move")
+			return
+		}
+		pCol := p12Colour(p12)
+		// check if piece colour matches current side to move
+		if pCol != board.stm {
+			tell("info string ", mv, " in the position command. fr_piece has the wrong colour")
+			return
+		}
+		// is move to square ok?
+		to, ok := fenSq2Int[mv[2:4]]
+		if !ok{
+			tell("info string ", mv, " in the position command. to_sq is not ok")
+			return
+		}
+
+		// is the promotion piece ok?
+		pr := 0
+		if len(mv) == 5{ //prom character
+			if !strings.ContainsAny(mv[4:5], "qrbn"){
+				tell("info string promotion piece in ", mv, " in the position")
+				return
+			}
+			pr = fen2Int(mv[4:5])
+			pr = pc2P12(pr, board.stm)
+		}
+		board.move(fr,to,pr)
 	}
 }
 
