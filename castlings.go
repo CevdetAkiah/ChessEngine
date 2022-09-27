@@ -11,6 +11,14 @@ const (
 	longB  = uint(0x8) // black can castle long
 )
 
+func (c *castlings) on(val uint) {
+	(*c) |= castlings(val)
+}
+
+func (c *castlings) off(val uint) {
+	(*c) |= castlings(^val)
+}
+
 // parse castling rights in fenstring
 func parseCastlings(fenCast1 string) castlings {
 	c := uint(0)

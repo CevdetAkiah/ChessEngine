@@ -61,6 +61,95 @@ func (b *boardStruct) newGame() {
 	parseFEN(startpos)
 }
 
+// make a pseudomove
+func (b *boardStruct) move(fr, to, pr int) bool {
+	newEp := 0
+	p12 := b.sq[fr]
+	switch {
+	// if wK moves turn off castling priveleges for white for future moves
+	case p12 == wK:
+		b.castlings.off(shortW | longW)
+		// castling is occurring
+		if abs(to-fr) == 2 {
+			if fr == E1 {
+				if to == G1 {
+					b.setSq(wR, F1)
+					b.setSq(empty, H1)
+				} else {
+					b.setSq(wR, D1)
+					b.setSq(empty, H1)
+				}
+			}
+		}
+	// if bK moves turn off castling priveleges for white for future moves
+	case p12 == bK:
+		b.castlings.off(shortB | longB)
+		// castling is occurring
+		if abs(to-fr) == 2 {
+			if fr == F8 {
+				if to == G8 {
+					b.setSq(bR, F8)
+					b.setSq(empty, H8)
+				} else {
+					b.setSq(bR, D8)
+					b.setSq(empty, H8)
+				}
+			}
+		}
+	case p12 == wR:
+		// if bishop moves from A1 or H1 turn off long castling or short castling respectively
+		if fr == A1 {
+			b.off(longW)
+		}
+		if fr == H1 {
+			b.off(shortW)
+		}
+	case p12 == bR:
+		// if bishop moves from A1 or H1 turn off long castling or short castling respectively
+		if fr == A1 {
+			b.off(longB)
+		}
+		if fr == H1 {
+			b.off(shortB)
+		}
+	case p12 == wP && b.sq[to] == empty: // ep move or set ep
+		if to-fr == 16 {
+			newEp = fr + 8
+		} else if to-fr == 7 { // must be ep square as empty and pawn is attacking
+			b.setSq(empty, to-8) // takes enemy pawn off board
+		} else if to-fr == 9 { // must be ep square as empty and pawn is attacking
+			b.setSq(empty, to-8) // takes enemy pawn off board
+		}
+	case p12 == bP && b.sq[to] == empty: // ep move or set ep
+		if to-fr == 16 {
+			newEp = fr + 8
+		} else if to-fr == 7 { // must be ep square as empty and pawn is attacking
+			b.setSq(empty, to-8) // takes enemy pawn off board
+		} else if to-fr == 9 { // must be ep square as empty and pawn is attacking
+			b.setSq(empty, to-8) // takes enemy pawn off board
+		}
+	}
+	b.ep = newEp
+	// from sq is always empty after the move
+	b.setSq(empty, fr)
+	// if promotion is not empty set to square to the promotion piece. Else, set the to square to the moving piece
+	if pr != empty {
+		b.setSq(pr, to)
+	} else {
+		b.setSq(p12, to)
+	}
+
+	// TODO: b.isInCheck needs to be made
+	// if b.isInCheck(b.stm) {
+	// 	b.stm = b.stm ^ 0x1
+	// 	return false
+	// }
+	// change side to move turn
+	b.stm = b.stm ^ 0x1
+
+	return true
+}
+
 // setSq sets a piece on a certain square on the board
 func (b *boardStruct) setSq(p12, s int) {
 	b.sq[s] = p12
@@ -148,23 +237,30 @@ func parseMvs(mvstr string) {
 		}
 		// is move to square ok?
 		to, ok := fenSq2Int[mv[2:4]]
-		if !ok{
+		if !ok {
 			tell("info string ", mv, " in the position command. to_sq is not ok")
 			return
 		}
 
 		// is the promotion piece ok?
 		pr := 0
-		if len(mv) == 5{ //prom character
-			if !strings.ContainsAny(mv[4:5], "qrbn"){
+		if len(mv) == 5 { //prom character
+			if !strings.ContainsAny(mv[4:5], "qrbn") {
 				tell("info string promotion piece in ", mv, " in the position")
 				return
 			}
 			pr = fen2Int(mv[4:5])
 			pr = pc2P12(pr, board.stm)
 		}
-		board.move(fr,to,pr)
+		board.move(fr, to, pr)
 	}
+}
+
+func abs(a int) int {
+	if a < 0 {
+		return -a
+	}
+	return a
 }
 
 // fen2Int convert pieceString to p12 int
