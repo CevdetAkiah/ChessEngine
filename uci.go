@@ -59,6 +59,10 @@ func uci(frGUI chan string) {
 			handleQuit(toEng)
 			quit = true
 			continue
+		case "pb":
+			board.Print()
+		case "pbb":
+			board.printAllBB()
 		}
 	}
 }
@@ -81,7 +85,7 @@ func handleSetoption(option []string) {
 }
 
 func handleNewgame() {
-	tell("info string ucinewgame not implemented")
+	board.newGame()
 }
 func handlePosition(cmd string) {
 	// position [fen <fenstring> | startpos ] moves <move1> .... <movei>
@@ -123,6 +127,7 @@ func handlePosition(cmd string) {
 
 }
 
+// handleGo parses the go command. The go command tells us to start thinking about best moves.
 func handleGo(words []string) {
 	// go searchmoves <move1-moveii>/ponder/wtime <ms>/ btime <ms>/winc/bi
 	if len(words) > 1 {
@@ -148,7 +153,7 @@ func handleGo(words []string) {
 			tell("info string go nodes not implemented")
 		case "movetime":
 			tell("info string go movetime not implemented")
-		case "mate":
+		case "mate": // mate <x> mate in x moves
 			tell("info string go mate not implemented")
 		case "infinite":
 			tell("info string go infinite not implemented")

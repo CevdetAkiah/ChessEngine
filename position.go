@@ -15,7 +15,7 @@ type boardStruct struct {
 	wbBB      [2]bitBoard  // white black bitBoard. One for white pieces, one for black pieces
 	pieceBB   [nP]bitBoard // one bitBoard for each piece type
 	King      [2]int       // one int for each king position, one white one black
-	ep        int          // en-passant suqare
+	ep        int          // en-passant square
 	castlings              // castling state
 	stm       colour       // side to move, white or black
 	count     [12]int      // 12 counters to count how many pieces we have
@@ -59,6 +59,17 @@ func (b *boardStruct) newGame() {
 	b.stm = WHITE
 	b.clear()
 	parseFEN(startpos)
+}
+
+func (b *boardStruct) genRookMoves(){
+	sd := b.stm
+	frBB := b.pieceBB[Rook] & b.wbBB[sd]
+	p12 := pc2P12(Rook, sd)
+	b.genFrMoves(p12,frBB,&m1)
+}
+
+func (b * boardStruct) genFrMoves(p12 int, frBB bitBoard, ml *moveList){
+	
 }
 
 // make a pseudomove
@@ -179,6 +190,80 @@ func (b *boardStruct) setSq(p12, s int) {
 	b.pieceBB[p].set(uint(s))
 }
 
+// Prints the board to stdout
+func (b *boardStruct) Print() {
+	// set the side to move text
+	txtStm := "BLACK"
+	if b.stm == WHITE {
+		txtStm = "WHITE"
+	}
+	txtEp := "-"
+	if b.ep != 0 {
+		txtEp = sq2Fen[b.ep]
+	}
+	fmt.Printf("%v to move; ep: %v castling:%v\n", txtStm, txtEp, b.castlings.String())
+
+	fmt.Println("  +------+------+------+------+------+------+------+------+")
+	for lines := 8; lines > 0; lines-- {
+		fmt.Println("  |      |      |      |      |      |      |      |      |")
+		fmt.Printf("%v |", lines)
+		for ix := (lines - 1) * 8; ix < lines*8; ix++ {
+			if b.sq[ix] == bP {
+				fmt.Printf("   o  |")
+			} else {
+				fmt.Printf("  %v   |", int2Fen(b.sq[ix]))
+			}
+		}
+		fmt.Println()
+		fmt.Println("  |      |      |      |      |      |      |      |      |")
+		fmt.Println("  +------+------+------+------+------+------+------+------+")
+	}
+	fmt.Printf("       A      B      C      D      E      F      G      H\n")
+}
+
+func (b *boardStruct) printAllBB() {
+	txtStm := "BLACK"
+	if b.stm == WHITE {
+		txtStm = "WHITE"
+	}
+	txtEp := "-"
+	if b.ep != 0 {
+		txtEp = sq2Fen[b.ep]
+	}
+	fmt.Printf("%v to move; ep: %v  castling:%v\n", txtStm, txtEp, b.castlings.String())
+
+	fmt.Println("white pieces")
+	fmt.Println(b.wbBB[WHITE].Stringln())
+	fmt.Println("black pieces")
+	fmt.Println(b.wbBB[BLACK].Stringln())
+
+	fmt.Println("wP")
+	fmt.Println((b.pieceBB[Pawn] & b.wbBB[WHITE]).Stringln())
+	fmt.Println("wN")
+	fmt.Println((b.pieceBB[Knight] & b.wbBB[WHITE]).Stringln())
+	fmt.Println("wB")
+	fmt.Println((b.pieceBB[Bishop] & b.wbBB[WHITE]).Stringln())
+	fmt.Println("wR")
+	fmt.Println((b.pieceBB[Rook] & b.wbBB[WHITE]).Stringln())
+	fmt.Println("wQ")
+	fmt.Println((b.pieceBB[Queen] & b.wbBB[WHITE]).Stringln())
+	fmt.Println("wK")
+	fmt.Println((b.pieceBB[King] & b.wbBB[WHITE]).Stringln())
+
+	fmt.Println("bP")
+	fmt.Println((b.pieceBB[Pawn] & b.wbBB[BLACK]).Stringln())
+	fmt.Println("bN")
+	fmt.Println((b.pieceBB[Knight] & b.wbBB[BLACK]).Stringln())
+	fmt.Println("bB")
+	fmt.Println((b.pieceBB[Bishop] & b.wbBB[BLACK]).Stringln())
+	fmt.Println("bR")
+	fmt.Println((b.pieceBB[Rook] & b.wbBB[BLACK]).Stringln())
+	fmt.Println("bQ")
+	fmt.Println((b.pieceBB[Queen] & b.wbBB[BLACK]).Stringln())
+	fmt.Println("bK")
+	fmt.Println((b.pieceBB[King] & b.wbBB[BLACK]).Stringln())
+}
+
 func parseFEN(FEN string) {
 	fenIx := 0
 
@@ -201,11 +286,6 @@ func parseFEN(FEN string) {
 			sq++
 		}
 	}
-
-	// take care of side to move
-	// take care of castling rights
-	// set the 50 move rule
-	// set number of full moves
 }
 
 // parse and make the moves in position command from GUI
@@ -456,7 +536,7 @@ const (
 	nP       = 6  // number of individual pieces
 	WHITE    = colour(0)
 	BLACK    = colour(1)
-	startpos = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+	startpos = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - "
 )
 
 // 6 piece types - no colour (P)

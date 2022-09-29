@@ -19,6 +19,26 @@ func (c *castlings) off(val uint) {
 	(*c) |= castlings(^val)
 }
 
+func (c castlings) String() string {
+	flags := ""
+	if uint(c)&shortW != 0 {
+		flags = "K"
+	}
+	if uint(c)&longW != 0 {
+		flags += "Q"
+	}
+	if uint(c)&shortB != 0 {
+		flags += "k"
+	}
+	if uint(c)&longB != 0 {
+		flags += "q"
+	}
+	if flags == "" {
+		flags = "-"
+	}
+	return flags
+}
+
 // parse castling rights in fenstring
 func parseCastlings(fenCast1 string) castlings {
 	c := uint(0)
