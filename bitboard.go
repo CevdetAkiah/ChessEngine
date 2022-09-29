@@ -56,6 +56,18 @@ func (b *bitBoard) firstOne() int {
 	return bit
 }
 
+// firstOne finds first position bit set to one
+func (b *bitBoard) lastOne() int {
+	bit := bits.LeadingZeros64(uint64(*b))
+	// if we hit 64 without finding a 1 return 64
+	if bit == 64 {
+		return 64
+	}
+	// update bitBoard, turn off the bit. Can loop through the  board using firstOne to turn off all bits.
+	*b = (*b << uint(bit+1)) >> uint(bit+1)
+	return 63 - bit
+}
+
 // returns the full bitstring (with leading zeroes) of the bitboard
 func (b bitBoard) String() string {
 	zeroes := ""
