@@ -16,7 +16,7 @@ func (c *castlings) on(val uint) {
 }
 
 func (c *castlings) off(val uint) {
-	(*c) |= castlings(^val)
+	(*c) &= castlings(^val)
 }
 
 func (c castlings) String() string {
