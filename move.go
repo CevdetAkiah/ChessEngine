@@ -29,7 +29,7 @@ func init() {
 
 type move uint64
 
-func (m *move) packMove(fr, to, p12, cp, pr, ep uint, castl castlings) {
+func (m *move) packMove(fr, to, p12, cp, pr, ep uint, castl uint) {
 	// 6 bits (fr), 6 bits (2), 4 bits (piece), 4 bits (cp), 4 bits (pr), 6 bits (ep), 4 bits (cast1), x bits value
 	*m = move(fr | (to << toShift) | (p12 | p12Shift) | (cp << cpShift) | (pr << prShift) | (ep << epShift) | uint(castl<<castlShift))
 }
