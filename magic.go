@@ -29,7 +29,8 @@ func (m *sMagic) atks(b *boardStruct) bitBoard {
 func initMagic() {
 	fmt.Println("starting init() for magic.go")
 
-	fillOptimalMagicsB()
+	// bishops
+	//fillOptimalMagicsB()
 	for sq := A1; sq <= H8; sq++ {
 		mBishopTab[sq].shift = uint(64 - nBBits[sq])
 		mBishopTab[sq].innerBB = bitBoard(innerBAtks(sq))
@@ -40,14 +41,16 @@ func initMagic() {
 	// rooks
 	fillOptimalMagicsR()
 	for sq := A1; sq <= H8; sq++ {
-		mRookTab[sq].shift = uint(64 - nBBits[sq])
+		mRookTab[sq].shift = uint(64 - nRBits[sq])
 		mRookTab[sq].innerBB = bitBoard(innerRAtks(sq))
-
-		mRookTab[sq].magic = magicB[sq]
+		mRookTab[sq].magic = magicR[sq]
 	}
 
 	fmt.Println("BISHOPS")
 	prepareMagicB()
+
+	fmt.Println("ROOKS")
+	prepareMagicR()
 }
 
 // create move bitBoards for bishops on all squares
@@ -58,7 +61,7 @@ func prepareMagicB() {
 		// all bit combinations for fr and all possible blockers
 		cnt := bitCombs(0x0, fr, fr, 0, &maxM, &mBishopTab[fr], dirsB)
 		_ = cnt
-		fmt.Println("bishop on ", sq2Fen[fr], "#of combinations", cnt, "maxIx", maxM)
+		//	fmt.Println("bishop on ", sq2Fen[fr], "#of combinations", cnt, "maxIx", maxM)
 	}
 }
 
@@ -69,7 +72,7 @@ func prepareMagicR() {
 		// all bit combinations for fr and all possible moves (toSqBB)
 		cnt := bitCombs(0x0, fr, fr, 0, &maxM, &mRookTab[fr], dirsR)
 		_ = cnt
-		fmt.Println("bishop on ", sq2Fen[fr], "#of combinations", cnt, "maxIx", maxM)
+		//	fmt.Println("bishop on ", sq2Fen[fr], "#of combinations", cnt, "maxIx", maxM)
 	}
 }
 
@@ -196,9 +199,9 @@ func computeAtks(fr int, dirs []dirstr, toBB uint64) uint64 {
 func innerBAtks(sq int) uint64 {
 	atkBB := uint64(0)
 	// NE (+9)
-	rw := sq / 8 // gives rank number (ie square 54 is on rank 7 of the board)
-	fl := sq % 8 // gives file number (eg square 54 is 6th square from the left)
-	r := rw + 1
+	rk := sq / 8
+	fl := sq % 8
+	r := rk + 1
 	f := fl + 1
 	for r < 7 && f < 7 {
 		atkBB |= uint64(1) << uint(r*8+f)
@@ -206,7 +209,7 @@ func innerBAtks(sq int) uint64 {
 		f++
 	}
 	// NW (+7)
-	r = rw + 1
+	r = rk + 1
 	f = fl - 1
 	for r < 7 && f > 0 {
 		atkBB |= uint64(1) << uint(r*8+f)
@@ -214,7 +217,7 @@ func innerBAtks(sq int) uint64 {
 		f--
 	}
 	// SW(-7)
-	r = rw - 1
+	r = rk - 1
 	f = f - 1
 	for r > 0 && f > 0 {
 		atkBB |= uint64(1) << uint(r*8+f)
@@ -222,7 +225,7 @@ func innerBAtks(sq int) uint64 {
 		f--
 	}
 	// SE (-9)
-	r = rw - 1
+	r = rk - 1
 	f = fl + 1
 	for r > 0 && f < 7 {
 		atkBB |= uint64(1) << uint(r*8+f)

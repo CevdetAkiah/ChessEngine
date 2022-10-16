@@ -1,13 +1,17 @@
 package main
 
 func main() {
-	tell("info string Hello BitGo")
+	tell("info string Starting GoBit")
 	uci(input())
+	tell("info string quits GOBIT")
 }
 
-func init(){
+func init() {
 	initFenSq2Int()
 	initMagic()
 	initAtksKing()
 	initAtksKnight()
+	initCastlings()
+	pSqInit()
+	board.newGame()
 }

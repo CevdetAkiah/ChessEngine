@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -19,7 +20,7 @@ var (
 
 func uci(frGUI chan string) {
 	tell("info string Hello from uci")
-	frEng, toEng := engine() // what is sent from the engine and what is sent to the engine
+	toEng, frEng := engine() // what is sent from the engine and what is sent to the engine
 	bInfinite := false
 	quit := false // when true command stream stops
 	cmd := ""
@@ -48,17 +49,13 @@ func uci(frGUI chan string) {
 		case "register":
 			handleRegister(words)
 		case "go":
-			handleGo(words)
+			handleGo(toEng, words)
 		case "ponderhit":
 			handlePonderhit()
 		case "setoption":
 			handleSetoption(words)
 		case "stop":
-			handleStop(toEng, &bInfinite)
-		case "quit", "q":
-			handleQuit(toEng)
-			quit = true
-			continue
+			handleStop(toEng)
 		case "pb":
 			board.Print()
 		case "pbb":
@@ -68,10 +65,10 @@ func uci(frGUI chan string) {
 }
 
 func handleUci() {
-	tell("id name BitGo")
-	tell("id author Cevdet")
+	tell("id name GoBit")
+	tell("id author Caro Kanns")
 
-	tell("option name Hash type spin default 32 min 1 max 1024")
+	tell("option name Hash type spin default 128 min 16 max 1024")
 	tell("option name Threads type spin default 1 min 1 max 16")
 	tell("uciok")
 }
@@ -128,8 +125,10 @@ func handlePosition(cmd string) {
 }
 
 // handleGo parses the go command. The go command tells us to start thinking about best moves.
-func handleGo(words []string) {
+func handleGo(toEng chan bool, words []string) {
 	// go searchmoves <move1-moveii>/ponder/wtime <ms>/ btime <ms>/winc/bi
+	limits.init()
+
 	if len(words) > 1 {
 		words[1] = trim(low(words[1]))
 		switch words[1] {
@@ -152,11 +151,18 @@ func handleGo(words []string) {
 		case "nodes":
 			tell("info string go nodes not implemented")
 		case "movetime":
-			tell("info string go movetime not implemented")
+			mt, err := strconv.Atoi(words[2])
+			if err != nil {
+				tell("info string ", words[2], " not numeric")
+				return
+			}
+			limits.setMoveTime(mt)
+			toEng <- true
 		case "mate": // mate <x> mate in x moves
 			tell("info string go mate not implemented")
 		case "infinite":
-			tell("info string go infinite not implemented")
+			limits.setInfinite(true)
+			toEng <- true
 		default:
 			tell("info string", words[1], " not implemented")
 		}
@@ -189,18 +195,18 @@ func handleBm(bm string, bInfinite bool) {
 }
 
 // handleBm handles best move provided from the engine
-func handleStop(toEng chan string, bInfinite *bool) {
+func handleStop(toEng chan bool) {
 	// if bInfinite the engine is thnking of a best move
 	// if we have a saved best move the engine has done it's job, and can be told to stop
 	// the gui is then told the best move
-	if *bInfinite {
+	if limits.infinite {
 		if saveBm != "" {
 			tell(saveBm)
 			saveBm = ""
 		}
 	}
-	toEng <- "stop"
-	*bInfinite = false
+	limits.setStop(true)
+	limits.setInfinite(false)
 }
 
 // not really necessary
@@ -208,26 +214,27 @@ func handleQuit(toEng chan string) {
 	toEng <- "stop"
 }
 
-func input() chan string {
-	line := make(chan string)
-	go func() { // wait for input from gui and sent cmds to uci
-		var reader *bufio.Reader
-		reader = bufio.NewReader(os.Stdin)
-		for {
-			text, err := reader.ReadString('\n') // reads each line of input
-			text = strings.TrimSpace(text)
-			if err != io.EOF && len(text) > 0 { // if an error occurs part way through input we still get whatever was typed before the error occurred
-				line <- text
-			}
-		}
-	}()
-	return line
-}
-
+//------------------------------------------------------
 func mainTell(text ...string) {
 	toGUI := ""
 	for _, t := range text {
 		toGUI += t
 	}
 	fmt.Println(toGUI)
+}
+
+func input() chan string {
+	line := make(chan string)
+	var reader *bufio.Reader
+	reader = bufio.NewReader(os.Stdin)
+	go func() {
+		for {
+			text, err := reader.ReadString('\n')
+			text = strings.TrimSpace(text)
+			if err != io.EOF && len(text) > 0 {
+				line <- text
+			}
+		}
+	}()
+	return line
 }

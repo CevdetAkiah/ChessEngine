@@ -17,12 +17,6 @@ var bPieces uint64
 // emptySquare turns all empty square bits to 1 while squares with pieces have 0 bit
 type bitBoard uint64
 
-// func bitManipulation() {
-// 	notWhite := ^wPieces
-// 	notBlack := ^bPieces
-// 	allPieces := wPieces | bPieces
-// 	emptySquare := ^allPieces
-// }
 
 // count returns number of bits set to 1
 func (b bitBoard) count() int {
@@ -39,7 +33,7 @@ func (b *bitBoard) set(pos uint) {
 	*b |= bitBoard(uint64(1) << pos)
 }
 
-// test is a bit is one or zero
+// test if the position is on the bit board
 func (b bitBoard) test(pos uint) bool {
 	return (b & bitBoard(uint64(1)<<pos)) != 0
 }
