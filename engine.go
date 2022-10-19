@@ -5,6 +5,13 @@ import (
 	"math"
 )
 
+const (
+	maxDepth = 100
+	maxPly   = 100
+)
+
+var cntNodes int64
+
 type searchLimits struct {
 	depth    int
 	nodes    uint64
@@ -38,6 +45,34 @@ func (s *searchLimits) setInfinite(b bool) {
 	s.infinite = b
 }
 
+// principle variation
+type pvList []move
+
+func (pv *pvList) add(mv move) {
+	*pv = append(*pv, mv)
+}
+
+func (pv *pvList) clear() {
+	*pv = (*pv)[:0]
+}
+func (pv *pvList) addPV(pv2 *pvList) {
+	*pv = append(*pv, *pv2...)
+}
+
+func (pv *pvList) catenate(mv move, pv2 *pvList) {
+	pv.clear()
+	pv.add(mv)
+	pv.addPV(pv2)
+}
+
+func (pv *pvList) String() string {
+	s := ""
+	for _, mv := range *pv {
+		s += mv.String() + " "
+	}
+	return s
+}
+
 func engine() (toEng chan bool, frEng chan string) {
 	tell("Hello from engine")
 	toEng = make(chan bool)
@@ -47,6 +82,7 @@ func engine() (toEng chan bool, frEng chan string) {
 }
 
 func root(toEng chan bool, frEng chan string) {
+	var pv pvList
 	b := &board
 	ml := moveList{}
 
