@@ -6,14 +6,14 @@ import (
 	"strings"
 )
 
-// various constants
+// various consts
 const (
-	nP12     = 12 // number of pieces total
-	nP       = 6  // number of individual pieces
+	nP12     = 12
+	nP       = 6
 	WHITE    = colour(0)
 	BLACK    = colour(1)
 	startpos = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - "
-	row1     = bitBoard(0x00000000000000FF) // everything 0 apart from first row
+	row1     = bitBoard(0x00000000000000FF)
 	row2     = bitBoard(0x000000000000FF00)
 	row3     = bitBoard(0x0000000000FF0000)
 	row4     = bitBoard(0x00000000FF000000)
@@ -27,140 +27,145 @@ const (
 	fileH    = bitBoard(0x8080808080808080)
 )
 
-func init() {
-	initFenSq2Int()
+var atksKnights [64]bitBoard
+var atksKings [64]bitBoard
+
+// initialize all possible knight attacks
+func initAtksKnights() {
+	for fr := A1; fr <= H8; fr++ {
+		toBB := bitBoard(0)
+		rk := fr / 8
+		fl := fr % 8
+		// NNE  2,1
+		if rk+2 < 8 && fl+1 < 8 {
+			to := (rk+2)*8 + fl + 1
+			toBB.set(to)
+		}
+
+		// ENE  1,2
+		if rk+1 < 8 && fl+2 < 8 {
+			to := (rk+1)*8 + fl + 2
+			toBB.set(to)
+		}
+
+		// ESE  -1,2
+		if rk-1 >= 0 && fl+2 < 8 {
+			to := (rk-1)*8 + fl + 2
+			toBB.set(to)
+		}
+
+		// SSE  -2,+1
+		if rk-2 >= 0 && fl+1 < 8 {
+			to := (rk-2)*8 + fl + 1
+			toBB.set(to)
+		}
+
+		// NNW  2,-1
+		if rk+2 < 8 && fl-1 >= 0 {
+			to := (rk+2)*8 + fl - 1
+			toBB.set(to)
+		}
+
+		// WNW  1,-2
+		if rk+1 < 8 && fl-2 >= 0 {
+			to := (rk+1)*8 + fl - 2
+			toBB.set(to)
+		}
+
+		// WSW  -1,-2
+		if rk-1 >= 0 && fl-2 >= 0 {
+			to := (rk-1)*8 + fl - 2
+			toBB.set(to)
+		}
+
+		// SSW  -2,-1
+		if rk-2 >= 0 && fl-1 >= 0 {
+			to := (rk-2)*8 + fl - 1
+			toBB.set(to)
+		}
+		atksKnights[fr] = toBB
+	}
+}
+
+// initialize all possible King attacks
+func initAtksKings() {
+	fmt.Println("init atksKings")
+
+	for fr := A1; fr <= H8; fr++ {
+		toBB := bitBoard(0)
+		rk := fr / 8
+		fl := fr % 8
+		//N 1,0
+		if rk+1 < 8 {
+			to := (rk+1)*8 + fl
+			toBB.set(to)
+		}
+
+		//NE 1,1
+		if rk+1 < 8 && fl+1 < 8 {
+			to := (rk+1)*8 + fl + 1
+			toBB.set(to)
+		}
+
+		//E   0,1
+		if fl+1 < 8 {
+			to := (rk)*8 + fl + 1
+			toBB.set(to)
+		}
+
+		//SE -1,1
+		if rk-1 >= 0 && fl+1 < 8 {
+			to := (rk-1)*8 + fl + 1
+			toBB.set(to)
+		}
+
+		//S  -1,0
+		if rk-1 >= 0 {
+			to := (rk-1)*8 + fl
+			toBB.set(to)
+		}
+
+		//SW -1,-1
+		if rk-1 >= 0 && fl-1 >= 0 {
+			to := (rk-1)*8 + fl - 1
+			toBB.set(to)
+		}
+
+		//W   0,-1
+		if fl-1 >= 0 {
+			to := (rk)*8 + fl - 1
+			toBB.set(to)
+		}
+
+		//NW  1,-1
+		if rk+1 < 8 && fl-1 >= 0 {
+			to := (rk+1)*8 + fl - 1
+			toBB.set(to)
+		}
+		atksKings[fr] = toBB
+	}
 }
 
 type boardStruct struct {
-	sq        [64]int      // number of squares on the board
-	wbBB      [2]bitBoard  // white black bitBoard. One for white pieces, one for black pieces
-	pieceBB   [nP]bitBoard // one bitBoard for each piece type
-	King      [2]int       // one int for each king position, one white one black
-	ep        int          // en-passant square
-	castlings              // castling state
-	stm       colour       // side to move, white or black
-	count     [12]int      // 12 counters to count how many pieces we have
-	rule50    int          // set to 0 if pawn moves or capture occurrs. See 50 move rule
+	sq      [64]int
+	wbBB    [2]bitBoard
+	pieceBB [nP]bitBoard
+	King    [2]int
+	ep      int
+	castlings
+	stm    colour
+	count  [12]int
+	rule50 int //set to 0 if a pawn or capt move otherwise increment
 }
-
-// can set all possible knight and king attacks first
-var atksKnight [64]bitBoard
-var atksKing [64]bitBoard
-
-// initMovesKnight creates a bitBoard showing all possible knight moves for every square on the board
-func initAtksKnight() {
-	toBB := bitBoard(0)
-	// DIRECTIONS
-	for fr := A1; fr <= H8; fr++ {
-		// NNE 2,1 // + 2 ranks + 1 file
-		rk := fr / 8
-		fl := fr % 8
-		if rk+2 < 8 && fl+1 < 8 { // doesn't hit the edge of the board
-			to := uint((rk+2)*8 + fl + 1)
-			toBB.set(to)
-		}
-		// ENE 1,2
-		if rk+1 < 8 && fl+2 < 8 { // doesn't hit the edge of the board
-			to := uint((rk+1)*8 + fl + 2)
-			toBB.set(to)
-		}
-		// ESE -1,2
-		if rk-1 < 8 && fl+2 < 8 { // doesn't hit the edge of the board
-			to := uint((rk-1)*8 + fl + 2)
-			toBB.set(to)
-		}
-		// SSE -2, 1
-		if rk-2 < 8 && fl+1 < 8 { // doesn't hit the edge of the board
-			to := uint((rk-2)*8 + fl + 1)
-			toBB.set(to)
-		}
-		// NNW 2, -1
-		if rk+2 < 8 && fl-1 < 8 { // doesn't hit the edge of the board
-			to := uint((rk+2)*8 + fl - 1)
-			toBB.set(to)
-		}
-		// WNW 1,-2
-		if rk+1 < 8 && fl-2 < 8 { // doesn't hit the edge of the board
-			to := uint((rk+1)*8 - fl - 2)
-			toBB.set(to)
-		}
-		// WSW -1, -2
-		if rk-1 < 8 && fl-2 < 8 { // doesn't hit the edge of the board
-			to := uint((rk-1)*8 + fl - 2)
-			toBB.set(to)
-		}
-		// SSW -2, -1
-		if rk-2 < 8 && fl-1 < 8 { // doesn't hit the edge of the board
-			to := uint((rk-2)*8 + fl - 1)
-			toBB.set(to)
-		}
-		atksKnight[fr] = toBB
-	}
-}
-
-// initMovesKing creates a bitBoard showing all possible king moves for every square on the board
-func initAtksKing() {
-	toBB := bitBoard(0)
-	// DIRECTIONS
-	for fr := A1; fr <= H8; fr++ {
-		rk := fr / 8
-		fl := fr % 8
-		// N
-		if rk+1 < 8 {
-			to := uint((rk+1)*8 + fl)
-			toBB.set(to)
-		}
-		// NE
-		if rk+1 < 8 && fl+1 < 8 {
-			to := uint((rk+1)*8 + fl + 1)
-			toBB.set(to)
-		}
-		// E
-		if fl+1 < 8 {
-			to := uint((rk)*8 + fl + 1)
-			toBB.set(to)
-		}
-		// SE
-		if rk-1 < 8 && fl+1 < 8 {
-			to := uint((rk-1)*8 + fl + 1)
-			toBB.set(to)
-		}
-		// S
-		if rk-1 < 8 {
-			to := uint((rk-1)*8 + fl)
-			toBB.set(to)
-		}
-		// SW
-		if rk-1 < 8 && fl-1 < 8 {
-			to := uint((rk-1)*8 + fl - 1)
-			toBB.set(to)
-		}
-		// W
-		if fl-1 < 8 {
-			to := uint(rk*8 + fl - 1)
-			toBB.set(to)
-		}
-		// NW
-		if rk+1 < 8 && fl-1 < 8 {
-			to := uint((rk+1)*8 + fl - 1)
-			toBB.set(to)
-		}
-		atksKing[fr] = toBB
-	}
-
-}
-
-// 0 white 1 black
 type colour int
 
 var board = boardStruct{}
 
-// allBB returns a bitBoard with all pieces showing
 func (b *boardStruct) allBB() bitBoard {
 	return b.wbBB[0] | b.wbBB[1]
 }
 
-// clear the board, flags, bitBoards etc
+// clear the board, flags, bitboards etc
 func (b *boardStruct) clear() {
 	b.stm = WHITE
 	b.rule50 = 0
@@ -184,151 +189,290 @@ func (b *boardStruct) clear() {
 	}
 }
 
+// make a move
+func (b *boardStruct) move(mv move) bool {
+	newEp := 0
+	// we assume that the move is legally correct (except inChekc())
+	fr := mv.fr()
+	to := mv.to()
+	pr := int(mv.pr())
+	p12 := b.sq[fr]
+	switch {
+	case p12 == wK:
+		b.castlings.off(shortW | longW)
+		if abs(int(to)-int(fr)) == 2 {
+			if to == G1 {
+				b.setSq(wR, F1)
+				b.setSq(empty, H1)
+			} else {
+				b.setSq(wR, D1)
+				b.setSq(empty, A1)
+			}
+		}
+	case p12 == bK:
+		b.castlings.off(shortB | longB)
+		if abs(int(to)-int(fr)) == 2 {
+			if to == G8 {
+				b.setSq(bR, F8)
+				b.setSq(empty, H8)
+			} else {
+				b.setSq(bR, D8)
+				b.setSq(empty, A8)
+			}
+		}
+	case p12 == wR:
+		if fr == A1 {
+			b.off(longW)
+		} else if fr == H1 {
+			b.off(shortW)
+		}
+	case p12 == bR:
+		if fr == A8 {
+			b.off(longB)
+		} else if fr == H8 {
+			b.off(shortB)
+		}
+
+	case p12 == wP && b.sq[to] == empty: // ep move or set ep
+		if to-fr == 16 {
+			newEp = fr + 8
+		} else if to-fr == 7 { // must be ep
+			b.setSq(empty, to-8)
+		} else if to-fr == 9 { // must be ep
+			b.setSq(empty, to-8)
+		}
+	case p12 == bP && b.sq[to] == empty: //  ep move or set ep
+		if fr-to == 16 {
+			newEp = to + 8
+		} else if fr-to == 7 { // must be ep
+			b.setSq(empty, to+8)
+		} else if fr-to == 9 { // must be ep
+			b.setSq(empty, to+8)
+		}
+	}
+	b.ep = newEp
+	b.setSq(empty, fr)
+
+	if pr != empty {
+		b.setSq(pr, to)
+	} else {
+		b.setSq(p12, to)
+	}
+
+	b.stm = b.stm ^ 0x1
+	if b.isAttacked(b.King[b.stm^0x1], b.stm) {
+		b.unmove(mv)
+		return false
+	}
+
+	return true
+}
+
+func (b *boardStruct) unmove(mv move) {
+	b.ep = int(mv.ep())
+	b.castlings = mv.castl()
+	p12 := int(mv.p12())
+	fr := int(mv.fr())
+	to := int(mv.to())
+	b.setSq(int(mv.cp()), to)
+	b.setSq(p12, fr)
+
+	if piece(p12) == Pawn {
+		if to == b.ep { // ep move
+			b.setSq(empty, to)
+			switch fr - to {
+			case NW, NE:
+				b.setSq(bP, to-N)
+			case SW, SE:
+				b.setSq(wP, to-S)
+			}
+		}
+	} else if piece(p12) == King {
+		sd := p12Colour(p12)
+		if fr-to == 2 { // long castling
+			b.setSq(castl[sd].rook, int(castl[sd].rookL))
+			b.setSq(empty, fr-1)
+		} else if fr-to == -2 { // short castling
+			b.setSq(castl[sd].rook, int(castl[sd].rookSh))
+			b.setSq(empty, fr+1)
+		}
+	}
+	b.stm = b.stm ^ 0x1
+}
+
+func (b *boardStruct) setSq(p12, sq int) {
+	p := piece(p12)
+	sd := p12Colour(p12)
+
+	if b.sq[sq] != empty { // capture
+		cp := b.sq[sq]
+		b.count[cp]--
+		b.wbBB[sd^0x1].clr(sq)
+		b.pieceBB[piece(cp)].clr(sq)
+	}
+	b.sq[sq] = p12
+
+	if p12 == empty {
+		b.wbBB[WHITE].clr(sq)
+		b.wbBB[BLACK].clr(sq)
+		for p := 0; p < nP; p++ {
+			b.pieceBB[p].clr(sq)
+		}
+		return
+	}
+
+	b.count[p12]++
+
+	if p == King {
+		b.King[sd] = sq
+	}
+
+	b.wbBB[sd].set(sq)
+	b.pieceBB[p].set(sq)
+}
+
 func (b *boardStruct) newGame() {
 	b.stm = WHITE
 	b.clear()
 	parseFEN(startpos)
 }
 
-func (b *boardStruct) genRookMoves(ml moveList) {
-	allRBB := b.pieceBB[Rook] & b.wbBB[b.stm]
-	p12 := uint(pc2P12(Rook, colour(b.stm)))
-	ep := uint(b.ep)
-	castlings := uint(b.castlings)
+func (b *boardStruct) genRookMoves(ml *moveList) {
+	sd := b.stm
+	allRBB := b.pieceBB[Rook] & b.wbBB[sd]
+	p12 := pc2P12(Rook, colour(sd))
 	var mv move
-
 	for fr := allRBB.firstOne(); fr != 64; fr = allRBB.firstOne() {
-		toBB := mRookTab[fr].atks(b) & (^b.wbBB[b.stm])             // remove our own pieces as we cannot attack these
-		for to := toBB.firstOne(); to != 64; to = toBB.firstOne() { //
-			mv.packMove(uint(fr), uint(to), p12, uint(b.sq[to]), empty, ep, castlings)
+		toBB := mRookTab[fr].atks(b) & (^b.wbBB[sd])
+		for to := toBB.firstOne(); to != 64; to = toBB.firstOne() {
+			mv.packMove(fr, to, p12, b.sq[to], empty, b.ep, b.castlings)
 			ml.add(mv)
 		}
 	}
 }
 
-func (b *boardStruct) genBishopMoves(ml moveList) {
-	allBBB := b.pieceBB[Bishop] & b.wbBB[b.stm]
-	p12 := uint(pc2P12(Bishop, colour(b.stm)))
-	ep := uint(b.ep)
-	castlings := uint(b.castlings)
+func (b *boardStruct) genBishopMoves(ml *moveList) {
+	sd := b.stm
+	allBBB := b.pieceBB[Bishop] & b.wbBB[sd]
+	p12 := pc2P12(Bishop, colour(sd))
+	ep := b.ep
+	castlings := b.castlings
 	var mv move
 
 	for fr := allBBB.firstOne(); fr != 64; fr = allBBB.firstOne() {
-		toBB := mBishopTab[fr].atks(b) & (^b.wbBB[b.stm])           // remove our own pieces as we cannot attack these
-		for to := toBB.firstOne(); to != 64; to = toBB.firstOne() { //
-			mv.packMove(uint(fr), uint(to), p12, uint(b.sq[to]), empty, ep, castlings)
+		toBB := mBishopTab[fr].atks(b) & (^b.wbBB[sd])
+		for to := toBB.lastOne(); to != 64; to = toBB.lastOne() {
+			mv.packMove(fr, to, p12, b.sq[to], empty, ep, castlings)
 			ml.add(mv)
 		}
 	}
 }
 
-func (b *boardStruct) genQueenMoves(ml moveList) {
-	allQBB := b.pieceBB[Queen] & b.wbBB[b.stm]
-	p12 := uint(pc2P12(Queen, colour(b.stm)))
-	ep := uint(b.ep)
-	caslings := uint(b.castlings)
+func (b *boardStruct) genQueenMoves(mlq *moveList) {
+	sd := b.stm
+	allQBB := b.pieceBB[Queen] & b.wbBB[sd]
+	p12 := int(pc2P12(Queen, colour(sd)))
+	ep := b.ep
+	castlings := b.castlings
 	var mv move
 
 	for fr := allQBB.firstOne(); fr != 64; fr = allQBB.firstOne() {
-		// Queen has both rook and bishop attack range
-		toBB := mBishopTab[fr].atks(b) & (^b.wbBB[b.stm])           // remove our own pieces as we cannot attack these
-		toBB |= mBishopTab[fr].atks(b) & (^b.wbBB[b.stm])           // remove our own pieces as we cannot attack these
-		for to := toBB.firstOne(); to != 64; to = toBB.firstOne() { //
-			mv.packMove(uint(fr), uint(to), p12, uint(b.sq[to]), empty, ep, caslings)
-			ml.add(mv)
+		toBB := mBishopTab[fr].atks(b) & (^b.wbBB[sd])
+		toBB |= mRookTab[fr].atks(b) & (^b.wbBB[sd])
+		for to := toBB.firstOne(); to != 64; to = toBB.firstOne() {
+			mv.packMove(fr, to, p12, b.sq[to], empty, ep, castlings)
+			mlq.add(mv)
 		}
 	}
 }
 
-func (b *boardStruct) genKnightMoves(ml moveList) {
-	allNBB := b.pieceBB[Knight] & b.wbBB[b.stm]
-	p12 := uint(pc2P12(Knight, colour(b.stm)))
-	ep := uint(b.ep)
-	castlings := uint(b.castlings)
+func (b *boardStruct) genKnightMoves(ml *moveList) {
+	sd := b.stm
+	allNBB := b.pieceBB[Knight] & b.wbBB[sd]
+	p12 := int(pc2P12(Knight, colour(sd)))
+	ep := b.ep
+	castlings :=b.castlings
 	var mv move
-
 	for fr := allNBB.firstOne(); fr != 64; fr = allNBB.firstOne() {
-		//
-		toBB := atksKnight[fr] & (^b.wbBB[b.stm])                   // remove our own pieces as we cannot attack these
-		for to := toBB.firstOne(); to != 64; to = toBB.firstOne() { //
-			mv.packMove(uint(fr), uint(to), p12, uint(b.sq[to]), empty, ep, castlings)
+		toBB := atksKnights[fr] & (^b.wbBB[sd])
+		for to := toBB.firstOne(); to != 64; to = toBB.firstOne() {
+			mv.packMove(fr, to, p12, b.sq[to], empty, ep, castlings)
 			ml.add(mv)
 		}
 	}
 }
 
-func (b *boardStruct) genKingMoves(ml moveList) {
-	allKBB := b.pieceBB[King] & b.wbBB[b.stm]
-	p12 := uint(pc2P12(King, colour(b.stm)))
-	ep := uint(b.ep)
-	castlings := uint(b.castlings)
+func (b *boardStruct) genKingMoves(ml *moveList) {
+	sd := b.stm
+	// 'normal' moves
+	p12 := int(pc2P12(King, colour(sd)))
+	ep := b.ep
+	castlings := b.castlings
 	var mv move
 
-	for fr := allKBB.firstOne(); fr != 64; fr = allKBB.firstOne() {
-		// normal moves
-		toBB := atksKing[fr] & (^b.wbBB[b.stm])                     // remove our own pieces as we cannot attack these
-		for to := toBB.firstOne(); to != 64; to = toBB.firstOne() { //
-			mv.packMove(uint(fr), uint(to), p12, uint(b.sq[to]), empty, ep, castlings)
-			ml.add(mv)
-		}
+	toBB := atksKings[b.King[sd]] & (^b.wbBB[sd])
+	for to := toBB.firstOne(); to != 64; to = toBB.firstOne() {
+		mv.packMove(b.King[sd], to, p12, b.sq[to], empty, ep, castlings)
+		ml.add(mv)
 	}
+
 	// castlings
-	if b.King[b.stm] == castl[b.stm].kingPos { // NOTE: Maybe not needed. We should know that the king is there if the flags are ok
+	if b.King[sd] == castl[sd].kingPos { // NOTE: Maybe not needed. We should know that the king is there if the flags are ok
 		// short castling
-		if b.sq[castl[b.stm].rookSh] == castl[b.stm].rook && // NOTE: Maybe not needed. We should know that the rook is there if the flags are ok
-			(castl[b.stm].betweenSh&b.allBB()) == 0 {
-			if b.isShortOk(b.stm) {
-				mv.packMove(uint(b.King[b.stm]), uint(b.King[b.stm]+2), uint(b.sq[b.King[b.stm]]), empty, empty, uint(b.ep), uint(b.castlings))
+		if b.sq[castl[sd].rookSh] == castl[sd].rook && // NOTE: Maybe not needed. We should know that the rook is there if the flags are ok
+			(castl[sd].betweenSh & b.allBB()) == 0 {
+			if b.isShortOk(sd) {
+				mv.packMove(b.King[sd], b.King[sd]+2, b.sq[b.King[sd]], empty, empty, b.ep, b.castlings)
 				ml.add(mv)
 			}
 		}
 
 		// long castling
-		if b.sq[castl[b.stm].rookL] == castl[b.stm].rook && // NOTE: Maybe not needed. We should know that the rook is there if the flags are ok
-			(castl[b.stm].betweenL&b.allBB()) == 0 {
-			if b.isLongOk(b.stm) {
-				mv.packMove(uint(b.King[b.stm]), uint(b.King[b.stm]-2), uint(b.sq[b.King[b.stm]]), empty, empty, uint(b.ep), uint(b.castlings))
+		if b.sq[castl[sd].rookL] == castl[sd].rook && // NOTE: Maybe not needed. We should know that the rook is there if the flags are ok
+			(castl[sd].betweenL&b.allBB()) == 0 {
+			if b.isLongOk(sd) {
+				mv.packMove(b.King[sd], b.King[sd]-2, b.sq[b.King[sd]], empty, empty, b.ep, b.castlings)
 				ml.add(mv)
 			}
 		}
 	}
 }
 
-// check if short castling is legal
+// check if short castlings is legal
 func (b *boardStruct) isShortOk(sd colour) bool {
 	if !b.shortFlag(sd) {
 		return false
 	}
 
 	opp := sd ^ 0x1
-	if castl[sd].pawnsSh&b.pieceBB[Pawn]&b.wbBB[opp] != 0 { // stopped by pawns?
-		return false
-	}
-	if castl[sd].pawnsSh&b.pieceBB[King]&b.wbBB[opp] != 0 { // stopped by king?
-		return false
-	}
-	if castl[sd].knightsSh&b.pieceBB[Knight]&b.wbBB[opp] != 0 { // stopped by knights?
+	if castl[sd].pawnsSh & b.pieceBB[Pawn] & b.wbBB[opp] != 0 { // stopped by pawns?
+		return false 
+	} 
+	if castl[sd].pawnsSh & b.pieceBB[King] & b.wbBB[opp] != 0 { // stopped by king?
+		return false 
+	} 
+	if castl[sd].knightsSh&b.pieceBB[Knight]&b.wbBB[opp] != 0 { // stopped by Knights?
 		return false
 	}
 
-	// sliding to e1/e8  // NOTE: Maybe not needed in search because we know if we are in check
+	// sliding to e1/e8	//NOTE: Maybe not needed during search because we know if we are in check
 	sq := b.King[sd]
-	if (mBishopTab[sq].atks(b) & (b.pieceBB[Bishop] | b.pieceBB[Queen]) & b.wbBB[opp]) != 0 { // if attacks from opp bishop or queen coincide with the king's sq
+	if (mBishopTab[sq].atks(b) & (b.pieceBB[Bishop] | b.pieceBB[Queen]) & b.wbBB[opp]) != 0 {
 		return false
 	}
-	if (mRookTab[sq].atks(b))&(b.pieceBB[Rook]|(b.pieceBB[Queen])&b.wbBB[opp]) != 0 {
-		return false
-	}
-
-	// sliding to f1/f8
-	if (mBishopTab[sq+1].atks(b) & (b.pieceBB[Bishop] | b.pieceBB[Queen]) & b.wbBB[opp]) != 0 { // if attacks from opp bishop or queen coincide with the king's sq
-		return false
-	}
-	if (mRookTab[sq+1].atks(b))&(b.pieceBB[Rook]|(b.pieceBB[Queen])&b.wbBB[opp]) != 0 {
+	if (mRookTab[sq].atks(b) & (b.pieceBB[Rook] | b.pieceBB[Queen]) & b.wbBB[opp]) != 0 {
 		return false
 	}
 
-	// sliding to g1/g8		//NOTE: Maybe not needed because we always make isAttacked() after a move
+	// slidings to f1/f8
+	if (mBishopTab[sq+1].atks(b) & (b.pieceBB[Bishop] | b.pieceBB[Queen]) & b.wbBB[opp]) != 0 {
+		return false
+	}
+	if (mRookTab[sq+1].atks(b) & (b.pieceBB[Rook] | b.pieceBB[Queen]) & b.wbBB[opp]) != 0 {
+		return false
+	}
+
+	// slidings to g1/g8		//NOTE: Maybe not needed because we always make isAttacked() after a move
 	if (mBishopTab[sq+2].atks(b) & (b.pieceBB[Bishop] | b.pieceBB[Queen]) & b.wbBB[opp]) != 0 {
 		return false
 	}
@@ -338,7 +482,7 @@ func (b *boardStruct) isShortOk(sd colour) bool {
 	return true
 }
 
-// check if long castling is legal
+// check if long castlings is legal
 func (b *boardStruct) isLongOk(sd colour) bool {
 	if !b.longFlag(sd) {
 		return false
@@ -382,216 +526,251 @@ func (b *boardStruct) isLongOk(sd colour) bool {
 	return true
 }
 
-var genPawns = [2]func(*boardStruct, *moveList){
-	(*boardStruct).genWPawnMoves, (*boardStruct).genBPawnMoves,
-}
+var genPawns = [2]func(*boardStruct, *moveList){(*boardStruct).genWPawnMoves, (*boardStruct).genBPawnMoves}
 
 func (b *boardStruct) genPawnMoves(ml *moveList) {
 	genPawns[b.stm](b, ml)
 }
-
 func (b *boardStruct) genWPawnMoves(ml *moveList) {
 	var mv move
 	wPawns := b.pieceBB[Pawn] & b.wbBB[WHITE]
+
 	// one step
-	to1Step := (wPawns << N) & ^b.allBB() // move all pawns north but not if blocked
-	// two steps
-	to2Step := ((to1Step & row3) << N) & ^b.allBB() // move 2 steps north
+	to1Step := (wPawns << N) & ^b.allBB()
+	// two steps,
+	to2Step := ((to1Step & row3) << N) & ^b.allBB()
 	// captures
-	toCapL := (wPawns & ^fileA) << NW & b.wbBB[BLACK] // capture left
-	toCapR := (wPawns & ^fileA) << NE & b.wbBB[BLACK] // capture right
+	toCapL := ((wPawns & ^fileA) << NW) & b.wbBB[BLACK]
+	toCapR := ((wPawns & ^fileH) << NE) & b.wbBB[BLACK]
 	// prom
 	prom := (to1Step | toCapL | toCapR) & row8
+
 	if prom != 0 {
 		for to := prom.firstOne(); to != 64; to = prom.firstOne() {
 			cp := empty
-			if b.sq[to] != empty { // if to square is not empty then capture
+			if b.sq[to] != empty {
 				cp = b.sq[to]
-				if toCapL.test(uint(to)) {
+				if toCapL.test(to) {
 					fr := to - NW
-					mv.packMove(uint(fr), uint(to), wP, uint(cp), wQ, uint(b.ep), uint(b.castlings))
+					mv.packMove(fr, to, wP, cp, wQ, b.ep, b.castlings)
 					ml.add(mv)
-					mv.packMove(uint(fr), uint(to), wP, uint(cp), wR, uint(b.ep), uint(b.castlings))
+					mv.packMove(fr, to, wP, cp, wR, b.ep, b.castlings)
 					ml.add(mv)
-					mv.packMove(uint(fr), uint(to), wP, uint(cp), wN, uint(b.ep), uint(b.castlings))
+					mv.packMove(fr, to, wP, cp, wN, b.ep, b.castlings)
 					ml.add(mv)
-					mv.packMove(uint(fr), uint(to), wP, uint(cp), wB, uint(b.ep), uint(b.castlings))
+					mv.packMove(fr, to, wP, cp, wB, b.ep, b.castlings)
 					ml.add(mv)
 				}
-				if toCapR.test(uint(to)) {
+				if toCapR.test(to) {
 					fr := to - NE
-					mv.packMove(uint(fr), uint(to), wP, uint(cp), wQ, uint(b.ep), uint(b.castlings))
+					mv.packMove(fr, to, wP, cp, wQ, b.ep, b.castlings)
 					ml.add(mv)
-					mv.packMove(uint(fr), uint(to), wP, uint(cp), wR, uint(b.ep), uint(b.castlings))
+					mv.packMove(fr, to, wP, cp, wR, b.ep, b.castlings)
 					ml.add(mv)
-					mv.packMove(uint(fr), uint(to), wP, uint(cp), wN, uint(b.ep), uint(b.castlings))
+					mv.packMove(fr, to, wP, cp, wN, b.ep, b.castlings)
 					ml.add(mv)
-					mv.packMove(uint(fr), uint(to), wP, uint(cp), wB, uint(b.ep), uint(b.castlings))
+					mv.packMove(fr, to, wP, cp, wB, b.ep, b.castlings)
 					ml.add(mv)
 				}
-			} else { // if empty then we're just moving north, no cap
+			} else {
 				fr := to - N
-				mv.packMove(uint(fr), uint(to), wP, uint(cp), wQ, uint(b.ep), uint(b.castlings))
+				mv.packMove(fr, to, wP, cp, wQ, b.ep, b.castlings)
+				ml.add(mv)
+				mv.packMove(fr, to, wP, cp, wR, b.ep, b.castlings)
+				ml.add(mv)
+				mv.packMove(fr, to, wP, cp, wN, b.ep, b.castlings)
+				ml.add(mv)
+				mv.packMove(fr, to, wP, cp, wB, b.ep, b.castlings)
 				ml.add(mv)
 			}
 		}
-		to1Step &= ^row1
-		toCapL &= ^row1
-		toCapR &= ^row1
-	}
+		to1Step &= ^row8
+		toCapL &= ^row8
+		toCapR &= ^row8
 
+	}
 	// ep move
 	if b.ep != 0 {
-		epBB := bitBoard(1) << uint(b.ep) // if ep then set epbb to that square
+		epBB := bitBoard(1) << uint(b.ep)
 		// ep left
 		epToL := ((wPawns & ^fileA) << NW) & epBB
-		if epToL != 0 { // if there is ep sq to left
-			mv.packMove(uint(b.ep-NW), uint(b.ep), wP, bP, empty, uint(b.ep), uint(b.castlings))
+		if epToL != 0 {
+			mv.packMove(b.ep-NW, b.ep, wP, bP, empty, b.ep, b.castlings)
 			ml.add(mv)
 		}
-		epToR := ((wPawns & ^fileA) << NE) & epBB
-		if epToR != 0 { // if there is ep sq to left
-			mv.packMove(uint(b.ep-NE), uint(b.ep), wP, bP, empty, uint(b.ep), uint(b.castlings))
+		epToR := ((wPawns & ^fileH) << NE) & epBB
+		if epToR != 0 {
+			mv.packMove(b.ep-NE, b.ep, wP, bP, empty, b.ep, b.castlings)
 			ml.add(mv)
 		}
 	}
-	// one step forward
-	for to := to1Step.firstOne(); to != 64; to1Step.firstOne() {
-		mv.packMove(uint(to-N), uint(to), wP, empty, empty, uint(b.ep), uint(b.castlings))
+	// Add one step forward
+	for to := to1Step.firstOne(); to != 64; to = to1Step.firstOne() {
+		mv.packMove(to-N, to, wP, empty, empty, b.ep, b.castlings)
 		ml.add(mv)
 	}
-	// two steps forward
-	for to := to2Step.firstOne(); to != 64; to2Step.firstOne() {
-		mv.packMove(uint(to-2*N), uint(to), wP, empty, empty, uint(b.ep), uint(b.castlings))
+	// Add two steps forward
+	for to := to2Step.firstOne(); to != 64; to = to2Step.firstOne() {
+		mv.packMove(to-2*N, to, wP, empty, empty, b.ep, b.castlings)
 		ml.add(mv)
 	}
 
 	// add Captures left
 	for to := toCapL.firstOne(); to != 64; to = toCapL.firstOne() {
-		mv.packMove(uint(to-NW), uint(to), wP, uint(b.sq[to]), empty, uint(b.ep), uint(b.castlings))
+		mv.packMove(to-NW, to, wP, b.sq[to], empty, b.ep, b.castlings)
 		ml.add(mv)
 	}
 
 	// add Captures right
 	for to := toCapR.firstOne(); to != 64; to = toCapR.firstOne() {
-		mv.packMove(uint(to-NE), uint(to), wP, uint(b.sq[to]), empty, uint(b.ep), uint(b.castlings))
+		mv.packMove(to-NE, to, wP, b.sq[to], empty, b.ep, b.castlings)
 		ml.add(mv)
 	}
 }
 
 func (b *boardStruct) genBPawnMoves(ml *moveList) {
-	// copy wgenWPawnMoves and replace with black pawn
 	var mv move
 	bPawns := b.pieceBB[Pawn] & b.wbBB[BLACK]
+
 	// one step
-	to1Step := (bPawns << N) & ^b.allBB() // move all pawns north but not if blocked
-	// two steps
-	to2Step := ((to1Step & row3) << N) & ^b.allBB() // move 2 steps north
+	to1Step := (bPawns >> (-S)) & ^b.allBB()
+	// two steps,
+	to2Step := ((to1Step & row6) >> (-S)) & ^b.allBB()
 	// captures
-	toCapL := (bPawns & ^fileA) << NW & b.wbBB[WHITE] // capture left
-	toCapR := (bPawns & ^fileA) << NE & b.wbBB[WHITE] // capture right
+	toCapL := ((bPawns & ^fileA) >> (-SW)) & b.wbBB[WHITE]
+	toCapR := ((bPawns & ^fileH) >> (-SE)) & b.wbBB[WHITE]
 	// prom
-	prom := (to1Step | toCapL | toCapR) & row8
+	prom := (to1Step | toCapL | toCapR) & row1
 	if prom != 0 {
 		for to := prom.firstOne(); to != 64; to = prom.firstOne() {
 			cp := empty
-			if b.sq[to] != empty { // if to square is not empty then capture
+			if b.sq[to] != empty {
 				cp = b.sq[to]
-				if toCapL.test(uint(to)) {
-					fr := to - NW
-					mv.packMove(uint(fr), uint(to), bP, uint(cp), bQ, uint(b.ep), uint(b.castlings))
+				if toCapL.test(to) {
+					fr := to - SW
+					mv.packMove(fr, to, bP, cp, bQ, b.ep, b.castlings)
 					ml.add(mv)
-					mv.packMove(uint(fr), uint(to), bP, uint(cp), bR, uint(b.ep), uint(b.castlings))
+					mv.packMove(fr, to, bP, cp, bR, b.ep, b.castlings)
 					ml.add(mv)
-					mv.packMove(uint(fr), uint(to), bP, uint(cp), bN, uint(b.ep), uint(b.castlings))
+					mv.packMove(fr, to, bP, cp, bN, b.ep, b.castlings)
 					ml.add(mv)
-					mv.packMove(uint(fr), uint(to), bP, uint(cp), bB, uint(b.ep), uint(b.castlings))
-					ml.add(mv)
-				}
-				if toCapR.test(uint(to)) {
-					fr := to - NE
-					mv.packMove(uint(fr), uint(to), bP, uint(cp), bQ, uint(b.ep), uint(b.castlings))
-					ml.add(mv)
-					mv.packMove(uint(fr), uint(to), bP, uint(cp), bR, uint(b.ep), uint(b.castlings))
-					ml.add(mv)
-					mv.packMove(uint(fr), uint(to), bP, uint(cp), bN, uint(b.ep), uint(b.castlings))
-					ml.add(mv)
-					mv.packMove(uint(fr), uint(to), bP, uint(cp), bB, uint(b.ep), uint(b.castlings))
+					mv.packMove(fr, to, bP, cp, bB, b.ep, b.castlings)
 					ml.add(mv)
 				}
-			} else { // if empty then we're just moving north, no cap
-				fr := to - N
-				mv.packMove(uint(fr), uint(to), bP, uint(cp), bQ, uint(b.ep), uint(b.castlings))
+				if toCapR.test(to) {
+					fr := to - SE
+					mv.packMove(fr, to, bP, cp, bQ, b.ep, b.castlings)
+					ml.add(mv)
+					mv.packMove(fr, to, bP, cp, bR, b.ep, b.castlings)
+					ml.add(mv)
+					mv.packMove(fr, to, bP, cp, bN, b.ep, b.castlings)
+					ml.add(mv)
+					mv.packMove(fr, to, bP, cp, bB, b.ep, b.castlings)
+					ml.add(mv)
+				}
+			} else {
+				fr := to - S
+				mv.packMove(fr, to, bP, cp, bQ, b.ep, b.castlings)
+				ml.add(mv)
+				mv.packMove(fr, to, bP, cp, bR, b.ep, b.castlings)
+				ml.add(mv)
+				mv.packMove(fr, to, bP, cp, bN, b.ep, b.castlings)
+				ml.add(mv)
+				mv.packMove(fr, to, bP, cp, bB, b.ep, b.castlings)
 				ml.add(mv)
 			}
 		}
-
 		to1Step &= ^row1
 		toCapL &= ^row1
 		toCapR &= ^row1
 	}
 	// ep move
 	if b.ep != 0 {
-		epBB := bitBoard(1) << uint(b.ep) // if ep then set epbb to that square
+		epBB := bitBoard(1) << uint(b.ep)
 		// ep left
-		epToL := ((bPawns & ^fileA) << NW) & epBB
-		if epToL != 0 { // if there is ep sq to left
-			mv.packMove(uint(b.ep-SW), uint(b.ep), bP, wP, empty, uint(b.ep), uint(b.castlings))
+		epToL := ((bPawns & ^fileA) >> (-SW)) & epBB
+		if epToL != 0 {
+			mv.packMove(b.ep-SW, b.ep, bP, wP, empty, b.ep, b.castlings)
 			ml.add(mv)
 		}
-		epToR := ((bPawns & ^fileA) << NE) & epBB
-		if epToR != 0 { // if there is ep sq to left
-			mv.packMove(uint(b.ep-SE), uint(b.ep), bP, wP, empty, uint(b.ep), uint(b.castlings))
+		epToR := ((bPawns & ^fileH) >> (-SE)) & epBB
+		if epToR != 0 {
+			mv.packMove(b.ep-SE, b.ep, bP, wP, empty, b.ep, b.castlings)
 			ml.add(mv)
 		}
 	}
-	// one step forward
-	for to := to1Step.firstOne(); to != 64; to1Step.firstOne() {
-		mv.packMove(uint(to-S), uint(to), wP, empty, empty, uint(b.ep), uint(b.castlings))
+	// Add one step forward
+	for to := to1Step.firstOne(); to != 64; to = to1Step.firstOne() {
+		mv.packMove(to-S, to, bP, empty, empty, b.ep, b.castlings)
 		ml.add(mv)
 	}
-	// two steps forward
-	for to := to2Step.firstOne(); to != 64; to2Step.firstOne() {
-		mv.packMove(uint(to-2*S), uint(to), wP, empty, empty, uint(b.ep), uint(b.castlings))
+	// Add two steps forward
+	for to := to2Step.firstOne(); to != 64; to = to2Step.firstOne() {
+		mv.packMove(to-2*S, to, bP, empty, empty, b.ep, b.castlings)
 		ml.add(mv)
 	}
-	// add captures Left
+
+	// add Captures left
 	for to := toCapL.firstOne(); to != 64; to = toCapL.firstOne() {
-		mv.packMove(uint(to-SW), uint(to), bP, uint(b.sq[to]), empty, uint(b.ep), uint(b.castlings))
+		mv.packMove(to-SW, to, bP, b.sq[to], empty, b.ep, b.castlings)
 		ml.add(mv)
 	}
 
-	// add captures right
+	// add Captures right
 	for to := toCapR.firstOne(); to != 64; to = toCapR.firstOne() {
-		mv.packMove(uint(to-SE), uint(to), bP, uint(b.sq[to]), empty, uint(b.ep), uint(b.castlings))
+		mv.packMove(to-SE, to, bP, b.sq[to], empty, b.ep, b.castlings)
 		ml.add(mv)
 	}
 }
 
-func (b *boardStruct) genFrMoves(p12 uint, frBB bitBoard, ml *moveList) {
+// generates all legal moves
+func (b *boardStruct) genAllMoves(ml *moveList) {
+	b.genPawnMoves(ml)
+	b.genKnightMoves(ml)
+	b.genBishopMoves(ml)
+	b.genRookMoves(ml)
+	b.genQueenMoves(ml)
+	b.genKingMoves(ml)
+
+	//
+	b.filterLegals(ml)
+}
+
+// generate all legal moves
+func (b *boardStruct) filterLegals(ml *moveList) {
+	for ix := len(*ml) - 1; ix >= 0; ix-- {
+		mov := (*ml)[ix]
+		if b.move(mov) {
+			b.unmove(mov)
+		} else {
+			ml.remove(ix)
+		}
+	}
+}
+
+func (b *boardStruct) genFrMoves(p12 int, toBB bitBoard, ml *moveList) {
 
 }
 
-// is sq attacked by the opposing side
+// is sq attacked by the sd color side
 func (b *boardStruct) isAttacked(sq int, sd colour) bool {
 	if pawnAtks[sd](b, sq) {
 		return true
 	}
 
-	if atksKnight[sq]&b.pieceBB[Knight]&b.wbBB[sd] != 0 {
+	if atksKnights[sq]&b.pieceBB[Knight]&b.wbBB[sd] != 0 {
+		return true
+	}
+	if atksKings[sq]&b.pieceBB[King]&b.wbBB[sd] != 0 {
+		return true
+	}
+	if (mBishopTab[sq].atks(b) & (b.pieceBB[Bishop] | b.pieceBB[Queen]) & b.wbBB[sd]) != 0 {
+		return true
+	}
+	if (mRookTab[sq].atks(b) & (b.pieceBB[Rook] | b.pieceBB[Queen]) & b.wbBB[sd]) != 0 {
 		return true
 	}
 
-	if atksKing[sq]&b.pieceBB[King]&b.wbBB[sd] != 0 {
-		return true
-	}
-	if (mBishopTab[sq].atks(b) & (b.pieceBB[Bishop] | b.pieceBB[Queen]&b.wbBB[sd])) != 0 {
-		return true
-	}
-
-	if mRookTab[sq].atks(b)&(b.pieceBB[Rook]|b.pieceBB[Queen]&b.wbBB[sd]) != 0 {
-		return true
-	}
 	return false
 }
 
@@ -599,6 +778,7 @@ var pawnAtks = [2]func(*boardStruct, int) bool{(*boardStruct).wPawnAtks, (*board
 
 func (b *boardStruct) wPawnAtks(sq int) bool {
 	sqBB := bitBoard(1) << uint(sq)
+
 	wPawns := b.pieceBB[Pawn] & b.wbBB[WHITE]
 
 	// Attacks left and right
@@ -609,7 +789,6 @@ func (b *boardStruct) wPawnAtks(sq int) bool {
 	}
 	return true
 }
-
 func (b *boardStruct) bPawnAtks(sq int) bool {
 	sqBB := bitBoard(1) << uint(sq)
 
@@ -625,186 +804,16 @@ func (b *boardStruct) bPawnAtks(sq int) bool {
 	return true
 }
 
-func (b *boardStruct) genAllMoves(ml *moveList) {
-	b.genPawnMoves(ml)
-	b.genKnightMoves(*ml)
-	b.genBishopMoves(*ml)
-	b.genRookMoves(*ml)
-	b.genQueenMoves(*ml)
-	b.genKingMoves(*ml)
+//////////////////////////////////// my own commands - NOT UCI /////////////////////////////////////
 
-	// check if move is legal
-	b.filterLegals(ml)
+// print all legal moves
+func (b *boardStruct) printAllLegals() {
+	var ml moveList
+	b.genAllMoves(&ml)
+	fmt.Println(ml.String())
 }
 
-func (b *boardStruct) filterLegals(ml *moveList) {
-	for ix := len(*ml) - 1; ix >= 0; ix-- {
-		mov := (*ml)[ix]
-		if b.move(mov) {
-			b.unmove(mov)
-		} else {
-			ml.remove(ix)
-		}
-	}
-}
-
-// make a pseudomove
-func (b *boardStruct) move(mv move) bool {
-	newEp := 0
-	// we assume that the move is legally correct (except inCheck())
-	fr := int(mv.fr())
-	to := int(mv.to())
-	pr := int(mv.pr())
-	p12 := b.sq[fr]
-	switch {
-	// if wK moves turn off castling priveleges for white for future moves
-	case p12 == wK:
-		b.castlings.off(shortW | longW)
-		// castling is occurring
-		if abs(int(to)-int(fr)) == 2 {
-			if fr == E1 {
-				if to == G1 {
-					b.setSq(wR, F1)
-					b.setSq(empty, H1)
-				} else {
-					b.setSq(wR, D1)
-					b.setSq(empty, A1)
-				}
-			}
-		}
-	// if bK moves turn off castling priveleges for white for future moves
-	case p12 == bK:
-		b.castlings.off(shortB | longB)
-		// castling is occurring
-		if abs(to-fr) == 2 {
-			if fr == F8 {
-				if to == G8 {
-					b.setSq(bR, F8)
-					b.setSq(empty, H8)
-				} else {
-					b.setSq(bR, D8)
-					b.setSq(empty, A8)
-				}
-			}
-		}
-	case p12 == wR:
-		// if bishop moves from A1 or H1 turn off long castling or short castling respectively
-		if fr == A1 {
-			b.off(longW)
-		}
-		if fr == H1 {
-			b.off(shortW)
-		}
-	case p12 == bR:
-		// if bishop moves from A1 or H1 turn off long castling or short castling respectively
-		if fr == A8 {
-			b.off(longB)
-		}
-		if fr == H8 {
-			b.off(shortB)
-		}
-	case p12 == wP && b.sq[to] == empty: // ep move or set ep
-		if to-fr == 16 { // if double move
-			newEp = fr + 8
-		} else if to-fr == 7 { // must be ep square as empty and pawn is attacking
-			b.setSq(empty, to-8) // takes enemy pawn off board
-		} else if to-fr == 9 { // must be ep square as empty and pawn is attacking
-			b.setSq(empty, to-8) // takes enemy pawn off board
-		}
-	case p12 == bP && b.sq[to] == empty: // ep move or set ep
-		if to-fr == 16 {
-			newEp = fr + 8
-		} else if to-fr == 7 { // must be ep square as empty and pawn is attacking
-			b.setSq(empty, to-8) // takes enemy pawn off board
-		} else if to-fr == 9 { // must be ep square as empty and pawn is attacking
-			b.setSq(empty, to-8) // takes enemy pawn off board
-		}
-	}
-	b.ep = newEp
-	// from sq is always empty after the move
-	b.setSq(empty, fr)
-	// if promotion is not empty set to square to the promotion piece. Else, set the to square to the moving piece
-	if pr != empty {
-		b.setSq(pr, to)
-	} else {
-		b.setSq(p12, to)
-	}
-
-	// change side to move turn
-	b.stm = b.stm ^ 0x1
-	// check if king is in check
-	if b.isAttacked(b.King[b.stm^0x1], b.stm) {
-		b.unmove(mv)
-		return false
-	}
-
-	return true
-}
-
-func (b *boardStruct) unmove(mv move) {
-	b.ep = int(mv.ep())
-	b.castlings = mv.cast1()
-	p12 := int(mv.p12())
-	fr := int(mv.fr())
-	to := int(mv.to())
-	b.setSq(int(mv.cp()), to) // put the cp back in it's original sq
-	b.setSq(p12, fr)          // put the moved piece back in it's original sq
-
-	if piece(p12) == Pawn {
-		if to == b.ep { // ep move
-			b.setSq(empty, to)
-			switch fr - to {
-			case NW, NE:
-				b.setSq(bP, to-N)
-			case SW, SE:
-				b.setSq(wP, to-S)
-			}
-		} else if piece(p12) == King {
-			sd := p12Colour(p12)
-			if fr-to == 2 { // long castling
-				b.setSq(castl[sd].rook, int(castl[sd].rookL)) // set the rook back in its  place pre long castling
-				b.setSq(empty, fr-1)
-			} else if fr-to == -2 { // short castling
-				b.setSq(castl[sd].rook, int(castl[sd].rookSh)) // set the rook back in its place pre short castling
-				b.setSq(empty, fr+1)
-			}
-		}
-		b.stm = b.stm ^ 0x1
-	}
-}
-
-// setSq sets a piece on a certain square on the board
-func (b *boardStruct) setSq(p12, s int) {
-	b.sq[s] = p12
-
-	// if p12 is empty then we clear that bit (s) for white and black on the board
-	if p12 == empty {
-		b.wbBB[WHITE].clr(uint(s))
-		b.wbBB[BLACK].clr(uint(s))
-		// we clear the piece type on position s
-		for p := 0; p < nP; p++ {
-			b.pieceBB[p].clr(uint(s))
-		}
-		return
-	}
-
-	p := piece(p12)
-	sd := p12Colour(p12)
-
-	// king is in this square
-	if p == King {
-		b.King[sd] = s
-	}
-
-	// set the colour board to have a piece on position s
-	b.wbBB[sd].set(uint(s))
-	// set the piece board to have piece p on position s
-	b.pieceBB[p].set(uint(s))
-}
-
-// Prints the board to stdout
 func (b *boardStruct) Print() {
-	// set the side to move text
 	txtStm := "BLACK"
 	if b.stm == WHITE {
 		txtStm = "WHITE"
@@ -813,7 +822,8 @@ func (b *boardStruct) Print() {
 	if b.ep != 0 {
 		txtEp = sq2Fen[b.ep]
 	}
-	fmt.Printf("%v to move; ep: %v castling:%v\n", txtStm, txtEp, b.castlings.String())
+
+	fmt.Printf("%v to move; ep: %v  castling:%v\n", txtStm, txtEp, b.castlings.String())
 
 	fmt.Println("  +------+------+------+------+------+------+------+------+")
 	for lines := 8; lines > 0; lines-- {
@@ -823,13 +833,14 @@ func (b *boardStruct) Print() {
 			if b.sq[ix] == bP {
 				fmt.Printf("   o  |")
 			} else {
-				fmt.Printf("  %v   |", int2Fen(b.sq[ix]))
+				fmt.Printf("   %v  |", int2Fen(b.sq[ix]))
 			}
 		}
 		fmt.Println()
 		fmt.Println("  |      |      |      |      |      |      |      |      |")
 		fmt.Println("  +------+------+------+------+------+------+------+------+")
 	}
+
 	fmt.Printf("       A      B      C      D      E      F      G      H\n")
 }
 
@@ -842,7 +853,7 @@ func (b *boardStruct) printAllBB() {
 	if b.ep != 0 {
 		txtEp = sq2Fen[b.ep]
 	}
-	fmt.Printf("%v to move; ep: %v  castling:%v\n", txtStm, txtEp, b.castlings.String())
+	fmt.Printf("%v to move; ep: %v   castling:%v\n", txtStm, txtEp, b.castlings.String())
 
 	fmt.Println("white pieces")
 	fmt.Println(b.wbBB[WHITE].Stringln())
@@ -876,11 +887,13 @@ func (b *boardStruct) printAllBB() {
 	fmt.Println((b.pieceBB[King] & b.wbBB[BLACK]).Stringln())
 }
 
+// parse a FEN string and setup that position
 func parseFEN(FEN string) {
+	board.clear()
 	fenIx := 0
 	sq := 0
 	for row := 7; row >= 0; row-- {
-		for sq := row * 8; sq < row*8+8; { // start drawing characters on white side
+		for sq = row * 8; sq < row*8+8; {
 
 			char := string(FEN[fenIx])
 			fenIx++
@@ -888,25 +901,27 @@ func parseFEN(FEN string) {
 				continue
 			}
 
-			if i, err := strconv.Atoi(char); err == nil { // if no error then this is an empty square. Empty squares are represented by numbers.
+			if i, err := strconv.Atoi(char); err == nil { //numeriskt
 				for j := 0; j < i; j++ {
 					board.setSq(empty, sq)
 					sq++
 				}
 				continue
 			}
+
 			if strings.IndexAny(p12ToFen, char) == -1 {
 				tell("info string invalid piece ", char, " try next one")
 				continue
 			}
+
 			board.setSq(fen2Int(char), sq)
 
 			sq++
-
 		}
 	}
 
 	remaining := strings.Split(trim(FEN[fenIx:]), " ")
+
 	// stm
 	if len(remaining) > 0 {
 		if remaining[0] == "w" {
@@ -914,7 +929,7 @@ func parseFEN(FEN string) {
 		} else if remaining[0] == "b" {
 			board.stm = BLACK
 		} else {
-			r := fmt.Sprintf("%v; sq=%v; fenIx=%v", strings.Join(remaining, " "), sq, fenIx)
+			r := fmt.Sprintf("%v; sq=%v;  fenIx=%v", strings.Join(remaining, " "), sq, fenIx)
 
 			tell("info string remaining=", r, ";")
 			tell("info string ", remaining[0], " invalid stm color")
@@ -943,16 +958,19 @@ func parseFEN(FEN string) {
 	}
 }
 
+// parse 50 move rue in fenstring
 func parse50(fen50 string) int {
 	r50, err := strconv.Atoi(fen50)
 	if err != nil || r50 < 0 {
-		tell("info string 50 move rule in fenstring", fen50, " is not a valid number >= 0 ")
+		tell("info string 50 move rule in fenstring ", fen50, " is not a valid number >= 0 ")
+		return 0
 	}
 	return r50
 }
 
 // parse and make the moves in position command from GUI
 func parseMvs(mvstr string) {
+
 	mvs := strings.Fields(low(mvstr))
 
 	for _, mv := range mvs {
@@ -999,7 +1017,7 @@ func parseMvs(mvstr string) {
 		cp := board.sq[to]
 
 		var intMv move // internal move format
-		intMv.packMove(uint(fr), uint(to), uint(p12), uint(cp), uint(pr), uint(board.ep), uint(board.castlings))
+		intMv.packMove(fr, to, p12, cp, pr, board.ep, board.castlings)
 
 		if !board.move(intMv) {
 			tell(fmt.Sprintf("tell info string %v-%v is an illegal move", sq2Fen[fr], sq2Fen[to]))
@@ -1024,7 +1042,7 @@ func fen2Int(c string) int {
 	return empty
 }
 
-// int2Fen converts p12 to fenString
+// int2fen convert p12 to fenString
 func int2Fen(p12 int) string {
 	if p12 == empty {
 		return " "
@@ -1032,18 +1050,17 @@ func int2Fen(p12 int) string {
 	return string(p12ToFen[p12])
 }
 
-// piece returns the colourless pc from p12.
-// bitshifting backwards reveals the base piece, eg bQ >> 1 and wQ >> 1 both equal Queen. 1001 >> 1 & 1000 >> 1 == 100 (4 in decimal)
+// piece returns the pc from p12
 func piece(p12 int) int {
 	return p12 >> 1
 }
 
-// p12Colour returns the colour of a p12 form. 0 for white 1 for black.
+// p12Colour returns the color of a p12 form
 func p12Colour(p12 int) colour {
 	return colour(p12 & 0x1)
 }
 
-// pcP12 returns p12 from pc and sd
+// pc2P12 returns p12 from pc and sd
 func pc2P12(pc int, sd colour) int {
 	return (pc << 1) | int(sd)
 }
@@ -1202,7 +1219,7 @@ func initFenSq2Int() {
 	sq2Fen[H8] = "h8"
 }
 
-// 6 piece types - no colour (P)
+// 6 piece types - no color (P)
 const (
 	Pawn int = iota
 	Knight
@@ -1213,20 +1230,19 @@ const (
 )
 
 // 12 pieces with color (P12)
-// every white piece is an even number and every black piece is an un even number
 const (
-	wP    = iota // white piece
-	bP           // black piece
-	wN           // white knight
-	bN           // black knight
-	wB           // white bishop
-	bB           // black bishop
-	wR           // white rook
-	bR           // black rook
-	wQ           // white queen
-	bQ           // black queen
-	wK           // white king
-	bK           // black king
+	wP = iota
+	bP
+	wN
+	bN
+	wB
+	bB
+	wR
+	bR
+	wQ
+	bQ
+	wK
+	bK
 	empty = 15
 )
 
@@ -1311,71 +1327,67 @@ const (
 	H8
 )
 
-// benchmark against magic numbers
-func (b *boardStruct) genSimpleRookMoves(ml moveList, sd colour) {
-	sd = b.stm
+//////////////////////////////// TODO: remove this after benchmarking ////////////////////////////////////////
+func (b *boardStruct) genSimpleRookMoves(ml *moveList, sd colour) {
 	allRBB := b.pieceBB[Rook] & b.wbBB[sd]
-	p12 := uint(pc2P12(Rook, colour(sd)))
-	ep := uint(b.ep)
-	castlings := uint(b.castlings)
+	p12 := int(pc2P12(Rook, colour(sd)))
+	ep := b.ep
+	castlings := b.castlings
 	var mv move
 	for fr := allRBB.firstOne(); fr != 64; fr = allRBB.firstOne() {
-		// rank
 		rk := fr / 8
-		// file
 		fl := fr % 8
-		// North
-		for r := rk + 1; r < 8; r++ { // go forwards
-			to := uint(r*8 + fl)
-			cp := uint(b.sq[to])                         // capture
-			if cp != empty && p12Colour(int(cp)) == sd { // if the capture square is our own colour, then stop the move
+		//N
+		for r := rk + 1; r < 8; r++ {
+			to := r*8 + fl
+			cp := b.sq[to]
+			if cp != empty && p12Colour(int(cp)) == sd {
 				break
 			}
-			mv.packMove(uint(fr), to, p12, cp, empty, ep, castlings)
+			mv.packMove(fr, to, p12, cp, empty, ep, castlings)
 			ml.add(mv)
 			if cp != empty {
 				break
 			}
 		}
-		// South
-		for r := rk - 1; r < 8; r-- { // go backwards
-			to := uint(r*8 + fl)
-			cp := uint(b.sq[to])                         // capture
-			if cp != empty && p12Colour(int(cp)) == sd { // if the capture square is our own colour, then stop the move
+		//S
+		for r := rk - 1; r >= 0; r-- {
+			to := r*8 + fl
+			cp := b.sq[to]
+			if cp != empty && p12Colour(int(cp)) == sd {
 				break
 			}
-			mv.packMove(uint(fr), to, p12, cp, empty, ep, castlings)
+			mv.packMove(fr, to, p12, cp, empty, ep, castlings)
 			ml.add(mv)
 			if cp != empty {
 				break
 			}
 		}
-		// East
+		//E
 		for f := fl + 1; f < 8; f++ {
-			to := uint(rk*8 + f)
-			cp := uint(b.sq[to])                         // capture
-			if cp != empty && p12Colour(int(cp)) == sd { // if the capture square is our own colour, then stop the move
+			to := rk*8 + f
+			cp := b.sq[to]
+			if cp != empty && p12Colour(int(cp)) == sd {
 				break
 			}
-			mv.packMove(uint(fr), to, p12, cp, empty, ep, castlings)
+			mv.packMove(fr, to, p12, cp, empty, ep, castlings)
 			ml.add(mv)
 			if cp != empty {
 				break
 			}
 		}
-		// West
-		for f := fl - 1; f < 8; f-- {
-			to := uint(rk*8 + f)
-			cp := uint(b.sq[to])                         // capture
-			if cp != empty && p12Colour(int(cp)) == sd { // if the capture square is our own colour, then stop the move
+		//W
+		for f := fl - 1; f >= 0; f-- {
+			to := rk*8 + f
+			cp := b.sq[to]
+			if cp != empty && p12Colour(int(cp)) == sd {
 				break
 			}
-			mv.packMove(uint(fr), to, p12, cp, empty, ep, castlings)
+			mv.packMove(fr, to, p12, cp, empty, ep, castlings)
 			ml.add(mv)
 			if cp != empty {
 				break
 			}
 		}
-
 	}
 }

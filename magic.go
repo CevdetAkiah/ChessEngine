@@ -85,19 +85,18 @@ func bitCombs(wBits bitBoard, fr, currSq, currIx int, maxM *int, mTabEntry *sMag
 	cnt := 0
 
 	currSq = getNextSq(fr, currSq, &currIx, dirs)
-	if currSq == -1 {
+	if currSq == -1 { // vägs ände
 		// append new toSqBB
 		m := (uint64(wBits) & innerBB) * magic
 		m = m >> shift
 		if int(m) > *maxM {
-			// fill up with empty entries
+			// fill upp with empty entries
 			for ; *maxM < int(m); *maxM++ {
 				*toSqBB = append(*toSqBB, 0x0)
 			}
 		}
 		toBB := bitBoard(computeAtks(fr, dirs, uint64(wBits)))
-
-		if (*toSqBB)[int(m)] != 0x0 && (*toSqBB)[int(m)] != toBB && fr == F8 { // for bishop
+		if (*toSqBB)[int(m)] != 0x0 && (*toSqBB)[int(m)] != toBB { // for bishop
 			fmt.Println("we have problem", sq2Fen[fr], "with ix", int(m), "wBits:\n", bitBoard(wBits).Stringln())
 			fmt.Println((*toSqBB)[int(m)].Stringln())
 			fmt.Printf("%X\n", uint64((*toSqBB)[int(m)]))
@@ -110,13 +109,13 @@ func bitCombs(wBits bitBoard, fr, currSq, currIx int, maxM *int, mTabEntry *sMag
 	//
 	//						wBits |= (uint64(1) << uint(currSq))
 
-	wBits.set(uint(currSq))
+	wBits.set(currSq)
 	cnt += bitCombs(wBits, fr, currSq, currIx, maxM, mTabEntry, dirs)
 
 	// 0
 	//
 	//						wBits &= ^(uint64(1) << uint(currSq))
-	wBits.clr(uint(currSq))
+	wBits.clr(currSq)
 	cnt += bitCombs(wBits, fr, currSq, currIx, maxM, mTabEntry, dirs)
 
 	return cnt
@@ -199,9 +198,9 @@ func computeAtks(fr int, dirs []dirstr, toBB uint64) uint64 {
 func innerBAtks(sq int) uint64 {
 	atkBB := uint64(0)
 	// NE (+9)
-	rk := sq / 8
+	rw := sq / 8
 	fl := sq % 8
-	r := rk + 1
+	r := rw + 1
 	f := fl + 1
 	for r < 7 && f < 7 {
 		atkBB |= uint64(1) << uint(r*8+f)
@@ -209,7 +208,7 @@ func innerBAtks(sq int) uint64 {
 		f++
 	}
 	// NW (+7)
-	r = rk + 1
+	r = rw + 1
 	f = fl - 1
 	for r < 7 && f > 0 {
 		atkBB |= uint64(1) << uint(r*8+f)
@@ -217,15 +216,15 @@ func innerBAtks(sq int) uint64 {
 		f--
 	}
 	// SW(-7)
-	r = rk - 1
-	f = f - 1
+	r = rw - 1
+	f = fl - 1
 	for r > 0 && f > 0 {
 		atkBB |= uint64(1) << uint(r*8+f)
 		r--
 		f--
 	}
 	// SE (-9)
-	r = rk - 1
+	r = rw - 1
 	f = fl + 1
 	for r > 0 && f < 7 {
 		atkBB |= uint64(1) << uint(r*8+f)
@@ -285,6 +284,7 @@ func getNextSq(fr, currSq int, currIx *int, dirs []dirstr) int {
 		}
 		currSq = fr
 	}
+
 	return -1
 }
 

@@ -18,22 +18,20 @@ var (
 	saveBm = ""
 )
 
-func uci(frGUI chan string) {
+func uci(input chan string) {
 	tell("info string Hello from uci")
 	toEng, frEng := engine() // what is sent from the engine and what is sent to the engine
-	bInfinite := false
-	quit := false // when true command stream stops
+	quit := false            // when true command stream stops
 	cmd := ""
-	words := []string{}
 	bm := "" // best move
 	for !quit {
 		select {
-		case cmd = <-frGUI:
-			words = strings.Split(cmd, " ") // command received from gui
+		case cmd = <-input:
 		case bm = <-frEng:
-			handleBm(bm, bInfinite)
+			handleBm(bm)
 			continue
 		}
+		words := strings.Split(cmd, " ") // command received from gui
 		words[0] = trim(low(words[0]))
 		switch words[0] {
 		case "uci":
@@ -56,17 +54,24 @@ func uci(frGUI chan string) {
 			handleSetoption(words)
 		case "stop":
 			handleStop(toEng)
+		case "quit", "q":
+			handleQuit()
+			quit = true
+			continue
 		case "pb":
 			board.Print()
 		case "pbb":
 			board.printAllBB()
+		case "pm":
+			board.printAllLegals()
 		}
 	}
+	tell("info string leaving uci(")
 }
 
 func handleUci() {
 	tell("id name GoBit")
-	tell("id author Caro Kanns")
+	tell("id author Carokanns")
 
 	tell("option name Hash type spin default 128 min 16 max 1024")
 	tell("option name Threads type spin default 1 min 1 max 16")
@@ -77,7 +82,6 @@ func handleIsReady() {
 	tell("readyok")
 }
 func handleSetoption(option []string) {
-	tell("info string set option", strings.Join(option, " "))
 	tell("info string not implemented yet")
 }
 
@@ -86,6 +90,7 @@ func handleNewgame() {
 }
 func handlePosition(cmd string) {
 	// position [fen <fenstring> | startpos ] moves <move1> .... <movei>
+	board.newGame()
 	cmd = trim(strings.TrimPrefix(cmd, "position"))
 	parts := split(cmd, "moves")
 
@@ -97,7 +102,6 @@ func handlePosition(cmd string) {
 
 	alt := split(parts[0], " ")
 	alt[0] = trim(alt[0])
-	tell("info string position ", alt[0], " not implemented")
 
 	if alt[0] == "startpos" {
 		// black position, then number of empty spaces, then white position, then turn order (w is first in this case), then castling potential, then 50 pawn move rule, then move number
@@ -112,8 +116,7 @@ func handlePosition(cmd string) {
 	// Now parts[0] is the fen-string only
 
 	// start the parsing
-	parts[0] = trim(parts[0])
-	fmt.Printf("info string parse %#v\n", parts[0])
+
 	parseFEN(parts[0])
 
 	if len(parts) == 2 {
@@ -163,6 +166,8 @@ func handleGo(toEng chan bool, words []string) {
 		case "infinite":
 			limits.setInfinite(true)
 			toEng <- true
+		case "register":
+			tell("info string go register not implemented")
 		default:
 			tell("info string", words[1], " not implemented")
 		}
@@ -186,8 +191,8 @@ func handleRegister(words []string) {
 }
 
 // handleBm handles best move provided from the engine
-func handleBm(bm string, bInfinite bool) {
-	if bInfinite {
+func handleBm(bm string) {
+	if limits.infinite {
 		saveBm = bm
 		return
 	}
@@ -210,8 +215,7 @@ func handleStop(toEng chan bool) {
 }
 
 // not really necessary
-func handleQuit(toEng chan string) {
-	toEng <- "stop"
+func handleQuit() {
 }
 
 //------------------------------------------------------

@@ -17,25 +17,24 @@ var bPieces uint64
 // emptySquare turns all empty square bits to 1 while squares with pieces have 0 bit
 type bitBoard uint64
 
-
 // count returns number of bits set to 1
 func (b bitBoard) count() int {
 	return bits.OnesCount64(uint64(b))
 }
 
 // clr sets the bit on given position to 0
-func (b *bitBoard) clr(pos uint) {
-	*b &= bitBoard(^(uint64(1) << pos))
+func (b *bitBoard) clr(pos int) {
+	*b &= bitBoard(^(uint64(1) << uint(pos)))
 }
 
 // set board to the given position
-func (b *bitBoard) set(pos uint) {
-	*b |= bitBoard(uint64(1) << pos)
+func (b *bitBoard) set(pos int) {
+	*b |= bitBoard(uint64(1) << uint(pos))
 }
 
 // test if the position is on the bit board
-func (b bitBoard) test(pos uint) bool {
-	return (b & bitBoard(uint64(1)<<pos)) != 0
+func (b bitBoard) test(pos int) bool {
+	return (b & bitBoard(uint64(1)<<uint(pos))) != 0
 }
 
 // firstOne finds first position bit set to one

@@ -2,7 +2,6 @@ package main
 
 var pieceVal = [12]int{100, -100, 325, -325, 350, -350, 500, -500, 950, -950, 10000, -10000}
 
-// piece square tables
 var knightFile = [8]int{-4, -3, -2, +2, +2, 0, -2, -4}
 var knightRank = [8]int{-15, 0, +5, +6, +7, +8, +2, -4}
 var centerFile = [8]int{-8, -1, 0, +1, +1, 0, -1, -3}
@@ -48,10 +47,14 @@ func pSqInit() {
 		rk := sq / 8
 
 		pSqTab[wP][sq] = pawnFile[fl] + pawnRank[rk]
+
 		pSqTab[wN][sq] = knightFile[fl] + knightRank[rk]
 		pSqTab[wB][sq] = centerFile[fl] + centerFile[rk]*2
+
 		pSqTab[wR][sq] = centerFile[fl] * 5
+
 		pSqTab[wQ][sq] = centerFile[fl] + centerFile[rk]
+
 		pSqTab[wK][sq] = (kingFile[fl] + kingRank[rk]) * 8
 	}
 

@@ -37,11 +37,13 @@ var castl = [2]castlOptions{
 	{shortB, longB, bR, E8, H8, A8, betweenBSh, betweenBL, 0x0, 0x0, 0x0, 0x0},
 }
 
+
+
 func (c castlings) shortFlag(sd colour) bool {
 	return (castl[sd].short & uint(c)) != 0
 }
 
-func (c castlings) longFlag(sd colour) bool{
+func (c castlings) longFlag(sd colour) bool {
 	return (castl[sd].long & uint(c)) != 0
 }
 
@@ -85,26 +87,26 @@ func (c castlings) String() string {
 }
 
 // parse castling rights in fenstring
-func parseCastlings(fenCast1 string) castlings {
+func parseCastlings(fenCastl string) castlings {
 	c := uint(0)
 	// no castling possible
-	if fenCast1 == "-" {
+	if fenCastl == "-" {
 		return castlings(0)
 	}
 
-	if strings.Index(fenCast1, "K") >= 0 {
+	if strings.Index(fenCastl, "K") >= 0 {
 		c |= shortW
 	}
 
-	if strings.Index(fenCast1, "Q") >= 0 {
+	if strings.Index(fenCastl, "Q") >= 0 {
 		c |= longW
 	}
 
-	if strings.Index(fenCast1, "k") >= 0 {
+	if strings.Index(fenCastl, "k") >= 0 {
 		c |= shortB
 	}
 
-	if strings.Index(fenCast1, "q") >= 0 {
+	if strings.Index(fenCastl, "q") >= 0 {
 		c |= longB
 	}
 	return castlings(c)

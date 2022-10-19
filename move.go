@@ -31,6 +31,7 @@ const (
 )
 
 var pieceRules [nP][]int // not pawns
+type move uint64
 
 func init() {
 	pieceRules[Rook] = append(pieceRules[Rook], N)
@@ -39,12 +40,14 @@ func init() {
 	pieceRules[Rook] = append(pieceRules[Rook], W)
 }
 
-type move uint64
-
 func (m move) String() string {
 	s := m.StringFull()
 	s = s[1:3] + s[5:]
 	return s
+}
+
+func (m move) castl() castlings {
+	return castlings(m&castlMask) >> castlShift
 }
 
 func (m move) StringFull() string {
@@ -55,10 +58,10 @@ func (m move) StringFull() string {
 	pr := int2Fen(int(m.pr()))
 	return fmt.Sprintf("%v%v-%v%v%v", p, fr, cp[:1], to, pr)
 }
-
-func (m *move) packMove(fr, to, p12, cp, pr, ep uint, castl uint) {
-	// 6 bits (fr), 6 bits (2), 4 bits (piece), 4 bits (cp), 4 bits (pr), 6 bits (ep), 4 bits (cast1), x bits value
-	*m = move(fr | (to << toShift) | (p12 | p12Shift) | (cp << cpShift) | (pr << prShift) | (ep << epShift) | uint(castl<<castlShift))
+func (m *move) packMove(fr, to, p12, cp, pr, epSq int, castl castlings) {
+	// 6 bits fr, 6 bits to, 4 bits p12, 4 bits cp, 4 bits prom, 4 bits ep, 4 bits castl = 32 bits
+	*m = move(fr | (to << toShift) | (p12 << p12Shift) |
+		(cp << cpShift) | (pr << prShift) | (epSq << epShift) | int(castl<<castlShift))
 }
 
 func (m *move) packEval(score int) {
