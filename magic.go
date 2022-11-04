@@ -18,8 +18,8 @@ var mBishopTab [64]sMagic // one for each square
 var mRookTab [64]sMagic   // one for each square
 
 // all possible attacks for a piece including blockers
-func (m *sMagic) atks(b *boardStruct) bitBoard {
-	return m.toSqBB[int(((b.allBB()&m.innerBB)*bitBoard(m.magic))>>m.shift)]
+func (m *sMagic) atks(allBB bitBoard) bitBoard {
+	return m.toSqBB[int(((allBB&m.innerBB)*bitBoard(m.magic))>>m.shift)]
 	// occ := board.allBB()             // occupants
 	// occ &= m.innerBB                 // mask occ with innerBB -> blockers
 	// occ *= bitBoard(uint64(m.magic)) // * uint64(occ) this gives us the index needed to show possible attacks

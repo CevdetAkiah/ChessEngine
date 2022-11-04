@@ -53,7 +53,7 @@ func uci(input chan string) {
 		case "setoption":
 			handleSetoption(words)
 		case "stop":
-			handleStop(toEng)
+			handleStop()
 		case "quit", "q":
 			handleQuit()
 			quit = true
@@ -64,6 +64,23 @@ func uci(input chan string) {
 			board.printAllBB()
 		case "pm":
 			board.printAllLegals()
+		case "pe":
+			fmt.Println("eval =", evaluate(&board))
+		case "psee":
+			fr, to := empty, empty
+			if len(words[1]) == 2 && len(words[2]) == 2 {
+				fr = fenSq2Int[words[1]]
+				to = fenSq2Int[words[2]]
+			} else if len(words[1]) == 4 {
+				fr = fenSq2Int[words[1][0:2]]
+				to = fenSq2Int[words[2][2:]]
+			} else {
+				fmt.Println("error in fr/to")
+				continue
+			}
+			fmt.Println("see = ", see(fr, to, &board))
+		case "pqs":
+			fmt.Println("qs =", qs(maxEval, &board))
 		}
 	}
 	tell("info string leaving uci(")
@@ -150,7 +167,13 @@ func handleGo(toEng chan bool, words []string) {
 		case "movestogo":
 			tell("info string go movestogo not implemented")
 		case "depth":
-			tell("info string go depth not implemented")
+			d, err := strconv.Atoi(words[2])
+			if err != nil {
+				tell("info string ", words[2], " not numeric")
+				return
+			}
+			limits.setDepth(d)
+			toEng <- true
 		case "nodes":
 			tell("info string go nodes not implemented")
 		case "movetime":
@@ -200,7 +223,7 @@ func handleBm(bm string) {
 }
 
 // handleBm handles best move provided from the engine
-func handleStop(toEng chan bool) {
+func handleStop() {
 	// if bInfinite the engine is thnking of a best move
 	// if we have a saved best move the engine has done it's job, and can be told to stop
 	// the gui is then told the best move

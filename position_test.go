@@ -194,7 +194,7 @@ func Test_genQueenMoves(t *testing.T) {
 	for _, tt := range tests {
 		var mlq moveList
 		handlePosition(tt.pos)
-		board.genQueenMoves(&mlq)
+		board.genQueenMoves(&mlq, (^board.wbBB[board.stm]))
 		if f, mv := findMoves(&mlq, tt.mv); f == false {
 			t.Errorf("%v: %v wasn't generated", tt.name, mv.String())
 		}
@@ -228,7 +228,7 @@ func Test_genKnightMoves(t *testing.T) {
 		var ml moveList
 		t.Run(tt.name, func(t *testing.T) {
 			handlePosition(tt.pos)
-			board.genKnightMoves(&ml)
+			board.genKnightMoves(&ml, (^board.wbBB[board.stm]))
 			if f, mv := findMoves(&ml, tt.mv); f == false {
 				t.Errorf("%v: %v wasn't generated", tt.name, mv.String())
 			}
@@ -262,7 +262,7 @@ func Test_genBishopMoves(t *testing.T) {
 		var ml moveList
 		t.Run(tt.name, func(t *testing.T) {
 			handlePosition(tt.pos)
-			board.genBishopMoves(&ml)
+			board.genBishopMoves(&ml, (^board.wbBB[board.stm]))
 			board.filterLegals(&ml)
 
 			if f, mv := findMoves(&ml, tt.mv); f == false {
@@ -311,7 +311,7 @@ func Test_genKingMoves(t *testing.T) {
 		var ml moveList
 		t.Run(tt.name, func(t *testing.T) {
 			handlePosition(tt.pos)
-			board.genKingMoves(&ml)
+			board.genKingMoves(&ml, (^board.wbBB[board.stm]))
 			board.filterLegals(&ml)
 			if f, mv := findMoves(&ml, tt.mv); f == false {
 				board.Print()
@@ -345,7 +345,7 @@ func Test_genRookMoves(t *testing.T) {
 		var ml moveList
 		t.Run(tt.name, func(t *testing.T) {
 			handlePosition(tt.pos)
-			board.genRookMoves(&ml)
+			board.genRookMoves(&ml, (^board.wbBB[board.stm]))
 			if f, mv := findMoves(&ml, tt.mv); f == false {
 				t.Errorf("%v: %v wasn't generated", tt.name, mv.String())
 			}
@@ -430,7 +430,7 @@ func Benchmark_genRookMoves(b *testing.B) {
 	handlePosition("position startpos moves d2d4 d7d5 c1f4 g8f6 e2e3 e7e6 b1d2 c7c5 c2c3 b8c6 g1f3 f8e7 f1d3 c8d7")
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		board.genRookMoves(&ml)
+		board.genRookMoves(&ml, (^board.wbBB[board.stm]))
 	}
 }
 
