@@ -96,8 +96,25 @@ func (m move) p12() int {
 	return int(m&p12Mask) >> p12Shift
 }
 
-func (m move) ep() int {
-	return int(m&epMask) >> epShift
+func (m move) pc() int {
+	return int(m&p12Mask) >> p12Shift
+}
+
+func (m move) ep(sd colour) int {
+	// sd is the side that can capture
+	file := int(m&epMask) >> epShift
+	if file == 0 {
+		return 0 // no ep
+	}
+
+	// there is an ep sq
+	rank := 5
+	if sd == BLACK {
+		rank = 2
+	}
+
+	return rank*8 + file - 1
+
 }
 
 func (m move) cp() int {
@@ -121,6 +138,10 @@ type moveList []move
 
 func (ml *moveList) clear() {
 	*ml = (*ml)[:0]
+}
+
+func (ml *moveList) new(size int) {
+	*ml = make(moveList, 0, size)
 }
 
 func (mvs *moveList) add(mv move) {
