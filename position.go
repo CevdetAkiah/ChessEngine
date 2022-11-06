@@ -147,6 +147,7 @@ func initAtksKings() {
 }
 
 type boardStruct struct {
+	key     uint64
 	sq      [64]int
 	wbBB    [2]bitBoard
 	pieceBB [nP]bitBoard

@@ -108,6 +108,11 @@ func (m move) cast1() castlings {
 	return castlings(m&castlMask) >> castlShift
 }
 
+//move without eval
+func (m move) onlyMv() move {
+	return m & move(^evalMask)
+}
+
 func (m move) pr() int {
 	return int(m&prMask) >> prShift
 }
